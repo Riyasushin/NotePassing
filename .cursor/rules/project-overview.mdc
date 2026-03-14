@@ -1,0 +1,54 @@
+---
+description: NotePassing 项目总览与开发原则，所有对话必读
+alwaysApply: true
+---
+
+# NotePassing（塞纸条）
+
+基于 BLE 蓝牙发现的近距离社交 Android App。蓝牙仅用于发现附近用户，所有数据通过服务器（REST + WebSocket）传输。
+
+## 核心文档（唯一可信来源）
+
+- 项目总览：`documents/second_design/MVP_V2_0314.md`
+- API 契约：`documents/second_design/unified_api_contract_v2.md`
+- 本地数据结构：`documents/second_design/local_structure_v2.md`
+- V1→V2 变更：`documents/second_design/API_CHANGES_SUMMARY.md`
+- 开发计划：`documents/android_dev_plan.md`
+
+> `first_disign/` 和 `initial version/` 仅供参考，不作为开发依据。
+
+## 三页结构
+
+- **附近页**：chatable 用户卡片（active/grace 态），排序：好友优先 + 信号强度
+- **好友页**：好友列表，按最近消息排序，Boost 高亮
+- **设置页**：编辑资料 + 匿名模式
+
+## 六个本地列表
+
+| 列表 | 存储 | 作用 |
+|------|------|------|
+| `ble_find` | 内存 | BLE 扫描结果 |
+| `heartbeat_receive` | 内存 | 对方心跳 |
+| `chatable` | 内存 | ble_find ∪ heartbeat_receive（过滤 block） |
+| `chat_history` | Room | 曾经 chatable 的用户，永不删除 |
+| `friend` | Room | 好友 + meet_count / is_nearby |
+| `block` | Room | 屏蔽列表 |
+
+## ⚠️ API 契约红线
+
+服务器（GPT 开发）与客户端（Cursor 开发）在**不同分支**独立开发，最终合并。  
+唯一对齐依据：`documents/second_design/unified_api_contract_v2.md`
+
+- 所有 HTTP 路径、请求/响应字段、WebSocket type/action **必须严格匹配契约文档**
+- 字段命名以契约为准（如 `scanned_devices` 非 `temp_ids`，`common` 非 `text`）
+- **禁止**自行新增、重命名、删减 API 字段或路径
+- 若发现契约存在歧义或缺漏，**必须在回复中高亮提醒用户**，由用户决定是否修改契约，而非自行假设
+- 任何涉及 API 调用的代码变更，需在回复中注明对应的契约章节
+
+## 开发原则
+
+1. **MVP 优先**：实现功能为第一目标，不过度设计
+2. **轻量化**：优先选择简单方案，避免引入重型框架
+3. **从简单到困难**：框架 → 数据层 → UI → 网络 → BLE → 业务整合
+4. **可扩展**：保持清晰的分层（UI / ViewModel / Repository / Data），方便未来升级
+5. **每个 Phase 可独立验证**：完成一步跑通一步
