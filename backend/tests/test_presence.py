@@ -87,9 +87,12 @@ class TestResolveNearbyDevices:
         device = result.nearby_devices[0]
         assert device.temp_id == temp_id2.temp_id
         assert device.device_id == temp_id2.device_id
-        assert device.nickname == "Device Two"
+        assert device.nickname == "不愿透露姓名的ta"
         assert device.is_anonymous is True
-        assert device.role_name == "Stranger"
+        assert device.avatar is None
+        assert device.tags == []
+        assert device.profile == ""
+        assert device.role_name is None
         # Distance should be estimated based on RSSI
         assert device.distance_estimate > 0
     

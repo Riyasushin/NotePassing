@@ -127,8 +127,11 @@ class TestDeviceService:
         
         assert result.device_id == device_b
         assert result.is_anonymous is True
-        assert result.role_name == "Mystery Person"
+        assert result.nickname == "不愿透露姓名的ta"
         assert result.avatar is None  # Hidden for anonymous strangers
+        assert result.tags == []
+        assert result.profile == ""
+        assert result.role_name is None
         assert result.is_friend is False
     
     @pytest.mark.asyncio

@@ -19,6 +19,9 @@ from app.utils.exceptions import DeviceNotInitializedError, InvalidParamsError, 
 from app.utils.uuid_utils import is_valid_device_id
 
 
+ANONYMOUS_STRANGER_NICKNAME = "不愿透露姓名的ta"
+
+
 class DeviceService:
     """Service for device operations."""
     
@@ -132,23 +135,30 @@ class DeviceService:
             is_friend = True  # Self is always "friend"
         
         # Apply privacy rules
+        nickname = device.nickname
         avatar = device.avatar
+        tags = device.tags or []
+        profile = device.profile or ""
         role_name = device.role_name
-        
-        # Stranger + anonymous mode: hide avatar, show role_name
+
+        # Stranger + anonymous mode: collapse all profile-bearing fields.
         if not is_friend and device.is_anonymous:
+            nickname = ANONYMOUS_STRANGER_NICKNAME
             avatar = None
-        
-        # Stranger + not anonymous: show avatar, don't show role_name
+            tags = []
+            profile = ""
+            role_name = None
+
+        # Stranger + not anonymous: no role alias.
         if not is_friend and not device.is_anonymous:
             role_name = None
         
         return DeviceProfileResponse(
             device_id=device.device_id,
-            nickname=device.nickname,
+            nickname=nickname,
             avatar=avatar,
-            tags=device.tags or [],
-            profile=device.profile,
+            tags=tags,
+            profile=profile,
             is_anonymous=device.is_anonymous,
             role_name=role_name,
             is_friend=is_friend,

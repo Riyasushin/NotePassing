@@ -73,13 +73,13 @@
 
 | 字段 | 陌生人可见 | 好友可见 |
 |------|-----------|----------|
-| nickname | ✓ | ✓ |
-| tags | ✓ | ✓ |
-| profile | ✓ | ✓ |
+| nickname | 匿名模式下显示 `不愿透露姓名的ta` | ✓ |
+| tags | 匿名模式下隐藏 | ✓ |
+| profile | 匿名模式下隐藏 | ✓ |
 | avatar | 匿名模式下隐藏 | ✓ |
 | device_id | ✗（陌生人只看到 temp_id） | ✓ |
 | is_anonymous | ✓ | ✓ |
-| role_name | 仅匿名模式下显示 | ✓ |
+| role_name | 匿名模式下隐藏 | ✓ |
 
 ---
 
@@ -175,7 +175,7 @@ GET /api/v1/device/{device_id}
 }
 ```
 
-**Server 行为：** 根据 requester_id 与目标的关系，按隐私规则过滤字段。如匿名模式的陌生人请求则隐藏 avatar。
+**Server 行为：** 根据 requester_id 与目标的关系，按隐私规则过滤字段。若目标为匿名模式且 requester 不是好友，则返回固定昵称 `不愿透露姓名的ta`，并隐藏 avatar / tags / profile / role_name。
 
 > **注意**: Server 不判断设备是否"在线"，收到请求即返回资料。
 

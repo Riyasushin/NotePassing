@@ -156,8 +156,8 @@ Connect to `/api/v1/ws?device_id={device_id}`
 | Mode | Friends | Strangers (Anonymous) | Strangers (Public) |
 |------|---------|----------------------|-------------------|
 | Avatar | ✅ Visible | ❌ Hidden | ✅ Visible |
-| Nickname | ✅ Visible | ✅ Visible | ✅ Visible |
-| Role Name | ✅ Visible | ✅ Visible | ❌ Hidden |
+| Nickname | ✅ Visible | 仅显示 `不愿透露姓名的ta` | ✅ Visible |
+| Role Name | ✅ Visible | ❌ Hidden | ❌ Hidden |
 | Profile | ✅ Visible | ❌ Hidden | ❌ Hidden |
 
 ---

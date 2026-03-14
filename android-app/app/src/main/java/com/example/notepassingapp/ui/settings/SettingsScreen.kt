@@ -75,6 +75,17 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = state.avatar,
+                onValueChange = { settingsViewModel.updateAvatar(it) },
+                label = { Text("头像 URL") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -89,7 +100,7 @@ fun SettingsScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     Text("匿名模式", style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "开启后附近的陌生人看不到你的头像",
+                        "开启后附近的陌生人只会看到“不愿透露姓名的ta”，头像和资料都会隐藏",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -1,9 +1,7 @@
 package com.example.notepassingapp.ui.nearby
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,10 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -29,12 +24,12 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.notepassingapp.data.model.FriendRequestState
 import com.example.notepassingapp.data.model.NearbyState
 import com.example.notepassingapp.data.model.NearbyUser
+import com.example.notepassingapp.ui.components.UserAvatar
 import kotlinx.coroutines.delay
 
 @Composable
@@ -79,29 +74,12 @@ fun NearbyCard(
                 .alpha(contentAlpha),
             verticalAlignment = Alignment.Top
         ) {
-            // 头像
-            Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (user.isFriend)
-                            MaterialTheme.colorScheme.primaryContainer
-                        else
-                            MaterialTheme.colorScheme.secondaryContainer
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.Person,
-                    contentDescription = null,
-                    tint = if (user.isFriend)
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    else
-                        MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(30.dp)
-                )
-            }
+            UserAvatar(
+                avatarUrl = user.displayAvatar,
+                isFriend = user.isFriend,
+                size = 52.dp,
+                contentDescription = user.displayNickname,
+            )
 
             Spacer(modifier = Modifier.width(12.dp))
 
@@ -109,7 +87,7 @@ fun NearbyCard(
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = user.nickname,
+                        text = user.displayNickname,
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -126,9 +104,9 @@ fun NearbyCard(
                     }
                 }
 
-                if (user.profile.isNotBlank()) {
+                if (user.displayProfile.isNotBlank()) {
                     Text(
-                        text = user.profile,
+                        text = user.displayProfile,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -137,7 +115,7 @@ fun NearbyCard(
                 }
 
                 // 最后一条消息预览
-                user.lastMessage?.let { msg ->
+                user.displayLastMessage?.let { msg ->
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = msg,
@@ -170,7 +148,7 @@ fun NearbyCard(
                     )
                 }
 
-                user.lastMessageAt?.let {
+                user.displayLastMessageAt?.let {
                     Text(
                         text = formatRelativeTime(it),
                         style = MaterialTheme.typography.labelSmall,

@@ -8,6 +8,8 @@ import com.example.notepassingapp.NotePassingApp
 import com.example.notepassingapp.data.local.entity.MessageEntity
 import com.example.notepassingapp.data.local.entity.FriendRequestDirection
 import com.example.notepassingapp.data.model.FriendRequestState
+import com.example.notepassingapp.data.model.visibleAvatar
+import com.example.notepassingapp.data.model.visibleNickname
 import com.example.notepassingapp.data.repository.RelationRepository
 import com.example.notepassingapp.data.repository.MessageRepository
 import com.example.notepassingapp.util.DeviceManager
@@ -23,6 +25,7 @@ import kotlinx.coroutines.launch
 data class ChatUiState(
     val peerDeviceId: String = "",
     val peerNickname: String = "",
+    val peerAvatar: String? = null,
     val isFriend: Boolean = false,
     val isSessionExpired: Boolean = false,
     val friendRequestState: FriendRequestState = FriendRequestState.NONE,
@@ -66,8 +69,18 @@ class ChatViewModel(
             ) { friend, history, pendingRequest ->
                 Triple(friend, history, pendingRequest)
             }.collect { (friend, history, pendingRequest) ->
-                val nickname = friend?.nickname ?: history?.nickname ?: "未知用户"
                 val isFriend = friend != null
+                val isAnonymous = history?.isAnonymous ?: false
+                val nickname = visibleNickname(
+                    nickname = friend?.nickname ?: history?.nickname,
+                    isAnonymous = isAnonymous,
+                    isFriend = isFriend,
+                )
+                val avatar = visibleAvatar(
+                    avatar = friend?.avatar ?: history?.avatar,
+                    isAnonymous = isAnonymous,
+                    isFriend = isFriend,
+                )
                 val requestState = when {
                     isFriend -> FriendRequestState.NONE
                     pendingRequest?.direction == FriendRequestDirection.OUTGOING -> FriendRequestState.OUTGOING_PENDING
@@ -78,6 +91,7 @@ class ChatViewModel(
                 _uiState.update {
                     it.copy(
                         peerNickname = nickname,
+                        peerAvatar = avatar,
                         isFriend = isFriend,
                         isSessionExpired = history?.isSessionExpired ?: false,
                         friendRequestState = requestState,

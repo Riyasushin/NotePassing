@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 data class SettingsUiState(
     val deviceId: String = "",
     val nickname: String = "",
+    val avatar: String = "",
     val profile: String = "",
     val isAnonymous: Boolean = false,
     val roleName: String = "",
@@ -32,6 +33,7 @@ class SettingsViewModel : ViewModel() {
         _uiState.value = SettingsUiState(
             deviceId = DeviceManager.getDeviceId(),
             nickname = DeviceManager.getNickname(),
+            avatar = DeviceManager.getAvatar().orEmpty(),
             profile = DeviceManager.getProfile(),
             isAnonymous = DeviceManager.isAnonymous(),
             roleName = DeviceManager.getRoleName() ?: ""
@@ -46,6 +48,10 @@ class SettingsViewModel : ViewModel() {
         _uiState.value = _uiState.value.copy(profile = value)
     }
 
+    fun updateAvatar(value: String) {
+        _uiState.value = _uiState.value.copy(avatar = value)
+    }
+
     fun updateAnonymous(value: Boolean) {
         _uiState.value = _uiState.value.copy(isAnonymous = value)
     }
@@ -58,6 +64,7 @@ class SettingsViewModel : ViewModel() {
     fun save() {
         val state = _uiState.value
         DeviceManager.setNickname(state.nickname)
+        DeviceManager.setAvatar(state.avatar.ifBlank { null })
         DeviceManager.setProfile(state.profile)
         DeviceManager.setAnonymous(state.isAnonymous)
         DeviceManager.setRoleName(state.roleName.ifBlank { null })
@@ -74,6 +81,7 @@ class SettingsViewModel : ViewModel() {
     fun completeOnboarding() {
         val state = _uiState.value
         DeviceManager.setNickname(state.nickname)
+        DeviceManager.setAvatar(state.avatar.ifBlank { null })
         DeviceManager.setProfile(state.profile)
         DeviceManager.setAnonymous(state.isAnonymous)
         DeviceManager.setRoleName(state.roleName.ifBlank { null })

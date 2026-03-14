@@ -32,13 +32,18 @@ class NotePassingApp : Application() {
     }
 
     /**
-     * 引导完成后的网络初始化：device/init → WS 连接 → 同步好友。
+     * 引导完成后的网络初始化：device/init → sync profile → WS 连接 → 同步好友。
      * 在 Onboarding 完成后也会调用此方法。
      */
     fun bootstrapNetwork() {
         appScope.launch {
             val result = DeviceRepository.initDevice()
             Log.d("NotePassingApp", "Device init result: $result")
+
+            if (DeviceRepository.isInitSuccess(result)) {
+                val profileResult = DeviceRepository.syncProfile()
+                Log.d("NotePassingApp", "Profile sync result: $profileResult")
+            }
 
             WebSocketManager.connect()
             IncomingMessageHandler.start(appScope)

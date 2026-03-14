@@ -22,7 +22,25 @@ data class NearbyUser(
     val sessionId: String? = null,
     val lastMessage: String? = null,
     val lastMessageAt: Long? = null
-)
+) {
+    val isIdentityHidden: Boolean
+        get() = shouldHideIdentity(isAnonymous, isFriend)
+
+    val displayNickname: String
+        get() = visibleNickname(nickname, isAnonymous, isFriend)
+
+    val displayAvatar: String?
+        get() = visibleAvatar(avatar, isAnonymous, isFriend)
+
+    val displayProfile: String
+        get() = if (isIdentityHidden) "" else profile
+
+    val displayLastMessage: String?
+        get() = if (isIdentityHidden) null else lastMessage
+
+    val displayLastMessageAt: Long?
+        get() = if (isIdentityHidden) null else lastMessageAt
+}
 
 enum class NearbyState {
     ACTIVE,   // 在蓝牙范围内或收到心跳
