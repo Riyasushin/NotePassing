@@ -1,0 +1,33 @@
+---
+description: 当前开发进度与待办事项
+alwaysApply: true
+---
+
+# 当前开发状态
+
+## 已完成
+
+- Phase 1-8：工程骨架、Room 数据层、UI 三页、导航、聊天页、网络层（REST+WS）、BLE 扫描/广播
+- 服务器优化：WS handler 补 commit、presence 去重查询、响应格式统一
+- 全局消息监听：`IncomingMessageHandler` 在 App 层持久化所有 WS 推送，防止非聊天页丢消息
+- 发送限制修复：非好友 2 条限制现在会检查对方是否已回复
+
+## 待办（优先级从高到低）
+
+### TODO-5：消息握手机制（防丢消息）
+- 当前问题：WS 推送是 fire-and-forget，断连/重连期间消息丢失
+- MVP 方案：WS 重连 + 进入聊天页时，用本地最新时间戳拉取服务器增量消息
+- 参考接口：`GET /messages/{session_id}?before=...&limit=...`
+
+### TODO-6：加好友 / 看 Profile / 传头像
+- 加好友：`POST /friends/request` → WS `friend_request` → `PUT /friends/{request_id}`
+- Profile 详情页：头像、昵称、tags、简介
+- 头像：上传方案待定（服务器直传 vs 第三方存储），显示用 Coil
+
+### TODO-1~4：设计决策（低优先级）
+- 匿名模式展示策略、UI 风格统一等，详见 `DESIGN_TODO.md`
+
+## 已知问题
+
+- 三台设备通讯已跑通，偶发丢消息（TODO-5 解决）
+- Debug 面板可通过底部导航"设置"页进入，显示 WS/BLE/API 状态

@@ -46,3 +46,21 @@ class MarkReadRequest(BaseModel):
 class MarkReadResponse(BaseModel):
     """Mark read response."""
     updated_count: int
+
+
+class SyncMessageItem(BaseModel):
+    """Message item in sync response (includes session_id and receiver_id)."""
+    message_id: str
+    session_id: str
+    sender_id: str
+    receiver_id: str
+    content: str
+    type: str
+    status: str
+    created_at: datetime
+
+
+class SyncMessagesResponse(BaseModel):
+    """Sync messages response."""
+    messages: List[SyncMessageItem]
+    has_more: bool

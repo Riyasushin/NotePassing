@@ -17,6 +17,8 @@ from app.schemas.message import (
     MessageHistoryResponse,
     MarkReadRequest,
     MarkReadResponse,
+    SyncMessageItem,
+    SyncMessagesResponse,
 )
 from app.utils.validators import validate_device_id, validate_content
 from app.utils.exceptions import (
@@ -132,6 +134,7 @@ class MessageService:
         device_id: str,
         before: Optional[datetime] = None,
         limit: int = 20,
+        after: Optional[datetime] = None,
     ) -> MessageHistoryResponse:
         """
         Get message history for a session.
@@ -140,8 +143,9 @@ class MessageService:
             db: Database session
             session_id: Session ID
             device_id: Requester device ID (for permission check)
-            before: Get messages before this time (for pagination)
+            before: Get messages before this time (for backward pagination)
             limit: Maximum number of messages to return
+            after: Get messages after this time (for forward sync)
         
         Returns:
             Message history response
@@ -166,13 +170,18 @@ class MessageService:
         if not session:
             raise FriendshipNotExistError()  # Or a more specific error
         
-        # Build query
-        query = select(Message).where(
-            Message.session_id == session_id
-        ).order_by(desc(Message.created_at))
-        
-        if before:
-            query = query.where(Message.created_at < before)
+        # Build query — after mode (forward sync) vs before mode (backward pagination)
+        if after:
+            query = select(Message).where(
+                Message.session_id == session_id,
+                Message.created_at > after,
+            ).order_by(Message.created_at)  # ASC for forward sync
+        else:
+            query = select(Message).where(
+                Message.session_id == session_id
+            ).order_by(desc(Message.created_at))
+            if before:
+                query = query.where(Message.created_at < before)
         
         query = query.limit(limit + 1)  # +1 to check if there are more
         
@@ -184,6 +193,8 @@ class MessageService:
         messages = list(messages[:limit])
         
         # Convert to response items
+        # after mode: already in ASC order; before mode: need to reverse DESC → ASC
+        ordered_messages = messages if after else list(reversed(messages))
         message_items = [
             MessageHistoryItem(
                 message_id=msg.message_id,
@@ -193,7 +204,7 @@ class MessageService:
                 status=msg.status,
                 created_at=msg.created_at,
             )
-            for msg in reversed(messages)  # Return in chronological order
+            for msg in ordered_messages
         ]
         
         return MessageHistoryResponse(
@@ -237,6 +248,62 @@ class MessageService:
         )
         
         return MarkReadResponse(updated_count=result.rowcount)
+    
+    @staticmethod
+    async def sync_messages(
+        db: AsyncSession,
+        device_id: str,
+        after: datetime,
+        limit: int = 200,
+    ) -> SyncMessagesResponse:
+        """
+        Get all messages received by a device after a given timestamp.
+        Used for catch-up sync after WS reconnect.
+        
+        Args:
+            db: Database session
+            device_id: Receiver device ID
+            after: Get messages after this time
+            limit: Maximum number of messages to return
+        
+        Returns:
+            Sync messages response
+        """
+        validate_device_id(device_id)
+        
+        if limit > 500:
+            limit = 500
+        
+        query = select(Message).where(
+            Message.receiver_id == device_id,
+            Message.created_at > after,
+            Message.type != "heartbeat",
+        ).order_by(Message.created_at).limit(limit + 1)
+        
+        result = await db.execute(query)
+        messages = result.scalars().all()
+        
+        has_more = len(messages) > limit
+        messages = list(messages[:limit])
+        
+        message_items = [
+            SyncMessageItem(
+                message_id=msg.message_id,
+                session_id=msg.session_id,
+                sender_id=msg.sender_id,
+                receiver_id=msg.receiver_id,
+                content=msg.content,
+                type=msg.type,
+                status=msg.status,
+                created_at=msg.created_at,
+            )
+            for msg in messages
+        ]
+        
+        return SyncMessagesResponse(
+            messages=message_items,
+            has_more=has_more,
+        )
     
     @staticmethod
     async def _check_friendship(

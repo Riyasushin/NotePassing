@@ -12,6 +12,7 @@ from app.schemas.message import (
     MessageHistoryResponse,
     MarkReadRequest,
     MarkReadResponse,
+    SyncMessagesResponse,
 )
 from app.services.message_service import MessageService
 from app.services.websocket_manager import push_new_message, push_message_sent
@@ -70,28 +71,52 @@ async def send_message(
     return success_response(data=result.model_dump())
 
 
+@router.get("/sync", response_model=dict)
+async def sync_messages(
+    device_id: str,
+    after: str = Query(..., description="ISO 8601 timestamp — get messages received after this time"),
+    limit: int = Query(200, ge=1, le=500, description="Maximum messages to return"),
+    db: DbDep = None,
+) -> dict:
+    """
+    Sync all missed messages for a device.
+    
+    Returns messages where the device is the receiver and created_at > after.
+    Used for catch-up after WebSocket reconnect.
+    Heartbeat messages are excluded.
+    """
+    after_dt = datetime.fromisoformat(after.replace("Z", "+00:00"))
+    result = await MessageService.sync_messages(db, device_id, after_dt, limit)
+    return success_response(data=result.model_dump())
+
+
 @router.get("/{session_id}", response_model=dict)
 async def get_message_history(
     session_id: str,
     device_id: str,
-    before: Optional[str] = Query(None, description="ISO 8601 timestamp for pagination"),
+    before: Optional[str] = Query(None, description="ISO 8601 timestamp for backward pagination"),
+    after: Optional[str] = Query(None, description="ISO 8601 timestamp for forward sync"),
     limit: int = Query(20, ge=1, le=50, description="Number of messages to return"),
     db: DbDep = None,
 ) -> dict:
     """
     Get message history for a session.
     
+    - Use `before` for backward pagination (older messages)
+    - Use `after` for forward sync (newer messages since last known)
+    - `before` and `after` are mutually exclusive; if both provided, `after` takes priority
     - Returns messages in chronological order (oldest first)
-    - Use `before` parameter for pagination (get messages before this time)
     - Maximum 50 messages per request
     """
-    # Parse before timestamp if provided
     before_dt = None
-    if before:
+    after_dt = None
+    if after:
+        after_dt = datetime.fromisoformat(after.replace("Z", "+00:00"))
+    elif before:
         before_dt = datetime.fromisoformat(before.replace("Z", "+00:00"))
     
     result = await MessageService.get_history(
-        db, session_id, device_id, before_dt, limit
+        db, session_id, device_id, before_dt, limit, after_dt
     )
     return success_response(data=result.model_dump())
 

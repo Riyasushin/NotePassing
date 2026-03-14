@@ -7,32 +7,31 @@ alwaysApply: true
 
 基于 BLE 蓝牙发现的近距离社交 Android App。蓝牙仅用于发现附近用户，所有数据通过服务器（REST + WebSocket）传输。
 
+## 运行环境
+
+| 模块 | 位置 | 分支 | 说明 |
+|------|------|------|------|
+| Android App | **本机 Windows**（Cursor + Android Studio） | `gxs/develop` | Kotlin/Compose，编译后部署到手机 |
+| Backend | **远程 Linux 服务器** `192.168.8.8:8000` | `ljx/dev` | Python FastAPI + PostgreSQL + asyncpg |
+
+- 两个分支在**同一个 Git 仓库**，各自只修改自己的目录（`android-app/` vs `backend/`）
+- Cursor 中可切换分支查看/修改服务器代码，但**不能在本机运行 backend**（无 Python 环境）
+- 服务器代码修改后需提醒用户到 Linux 端 `git pull` 并重启
+- Android 代码修改后需提醒用户在 Android Studio 中 Rebuild & Run
+
 ## 核心文档（唯一可信来源）
 
 - 项目总览：`documents/second_design/MVP_V2_0314.md`
 - API 契约：`documents/second_design/unified_api_contract_v2.md`
 - 本地数据结构：`documents/second_design/local_structure_v2.md`
-- V1→V2 变更：`documents/second_design/API_CHANGES_SUMMARY.md`
 - 开发计划：`documents/android_dev_plan.md`
-
-> `first_disign/` 和 `initial version/` 仅供参考，不作为开发依据。
+- 待办决策：`documents/second_design/DESIGN_TODO.md`
 
 ## 三页结构
 
 - **附近页**：chatable 用户卡片（active/grace 态），排序：好友优先 + 信号强度
 - **好友页**：好友列表，按最近消息排序，Boost 高亮
 - **设置页**：编辑资料 + 匿名模式
-
-## 六个本地列表
-
-| 列表 | 存储 | 作用 |
-|------|------|------|
-| `ble_find` | 内存 | BLE 扫描结果 |
-| `heartbeat_receive` | 内存 | 对方心跳 |
-| `chatable` | 内存 | ble_find ∪ heartbeat_receive（过滤 block） |
-| `chat_history` | Room | 曾经 chatable 的用户，永不删除 |
-| `friend` | Room | 好友 + meet_count / is_nearby |
-| `block` | Room | 屏蔽列表 |
 
 ## ⚠️ API 契约红线
 
@@ -42,13 +41,12 @@ alwaysApply: true
 - 所有 HTTP 路径、请求/响应字段、WebSocket type/action **必须严格匹配契约文档**
 - 字段命名以契约为准（如 `scanned_devices` 非 `temp_ids`，`common` 非 `text`）
 - **禁止**自行新增、重命名、删减 API 字段或路径
-- 若发现契约存在歧义或缺漏，**必须在回复中高亮提醒用户**，由用户决定是否修改契约，而非自行假设
-- 任何涉及 API 调用的代码变更，需在回复中注明对应的契约章节
+- 若发现契约存在歧义或缺漏，**必须在回复中高亮提醒用户**
+- 修改 backend 代码时，**不要修改日志生成部分**
 
 ## 开发原则
 
 1. **MVP 优先**：实现功能为第一目标，不过度设计
 2. **轻量化**：优先选择简单方案，避免引入重型框架
-3. **从简单到困难**：框架 → 数据层 → UI → 网络 → BLE → 业务整合
-4. **可扩展**：保持清晰的分层（UI / ViewModel / Repository / Data），方便未来升级
-5. **每个 Phase 可独立验证**：完成一步跑通一步
+3. **可扩展**：保持清晰的分层（UI / ViewModel / Repository / Data）
+4. **每个 Phase 可独立验证**：完成一步跑通一步

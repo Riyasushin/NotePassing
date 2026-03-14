@@ -45,3 +45,21 @@ data class MarkReadRequest(
 data class MarkReadData(
     @SerializedName("updated_count") val updatedCount: Int
 )
+
+// ===== 消息同步（握手机制）=====
+
+data class SyncMessagesData(
+    @SerializedName("messages") val messages: List<SyncMessageItemDto>,
+    @SerializedName("has_more") val hasMore: Boolean
+)
+
+data class SyncMessageItemDto(
+    @SerializedName("message_id") val messageId: String,
+    @SerializedName("session_id") val sessionId: String,
+    @SerializedName("sender_id") val senderId: String,
+    @SerializedName("receiver_id") val receiverId: String,
+    @SerializedName("content") val content: String,
+    @SerializedName("type") val type: String,
+    @SerializedName("status") val status: String,
+    @SerializedName("created_at") val createdAt: String
+)

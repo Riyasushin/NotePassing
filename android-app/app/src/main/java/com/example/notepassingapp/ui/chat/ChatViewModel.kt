@@ -1,5 +1,6 @@
 package com.example.notepassingapp.ui.chat
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -43,6 +44,7 @@ class ChatViewModel(
     init {
         loadPeerInfo()
         observeMessagesForLimit()
+        syncOnEntry()
     }
 
     private fun loadPeerInfo() {
@@ -67,6 +69,28 @@ class ChatViewModel(
     private fun observeMessagesForLimit() {
         viewModelScope.launch {
             messages.collect { checkSendLimit() }
+        }
+    }
+
+    /**
+     * 进入聊天页时触发一次会话级消息同步（握手补漏）。
+     * 用本地该会话最新消息的时间戳向服务器拉取增量消息。
+     */
+    private fun syncOnEntry() {
+        viewModelScope.launch {
+            // 需要先知道 sessionId —— 从已有消息中获取
+            val existingMessages = messages.value
+            val sessionId = existingMessages.firstOrNull { it.sessionId != "pending" }?.sessionId
+            if (sessionId != null) {
+                try {
+                    val count = MessageRepository.syncSessionMessages(sessionId)
+                    if (count > 0) {
+                        Log.d("ChatViewModel", "Synced $count messages for session $sessionId")
+                    }
+                } catch (e: Exception) {
+                    Log.e("ChatViewModel", "Session sync failed", e)
+                }
+            }
         }
     }
 

@@ -16,22 +16,37 @@ import kotlinx.coroutines.launch
  * App 级别的全局 WS 消息接收器。
  * 不管用户在哪个页面，所有 new_message 都会写入 Room。
  * Room 的 Flow 会自动通知任何正在订阅的 UI。
+ *
+ * 同时监听 WS 连接状态，重连成功后自动触发全局消息同步（握手补漏）。
  */
 object IncomingMessageHandler {
 
     private const val TAG = "IncomingMsgHandler"
     private val gson = Gson()
-    private var job: Job? = null
+    private var messageJob: Job? = null
+    private var syncJob: Job? = null
 
     fun start(scope: CoroutineScope) {
-        if (job?.isActive == true) return
+        startMessageListener(scope)
+        startReconnectSyncListener(scope)
+    }
+
+    fun stop() {
+        messageJob?.cancel()
+        messageJob = null
+        syncJob?.cancel()
+        syncJob = null
+    }
+
+    private fun startMessageListener(scope: CoroutineScope) {
+        if (messageJob?.isActive == true) return
 
         val db = NotePassingApp.instance.database
         val messageDao = db.messageDao()
         val chatHistoryDao = db.chatHistoryDao()
         val myDeviceId = DeviceManager.getDeviceId()
 
-        job = scope.launch {
+        messageJob = scope.launch {
             WebSocketManager.incomingMessages.collect { msg ->
                 when (msg.type) {
                     WsTypes.NEW_MESSAGE -> handleNewMessage(
@@ -43,9 +58,36 @@ object IncomingMessageHandler {
         Log.d(TAG, "Global message listener started")
     }
 
-    fun stop() {
-        job?.cancel()
-        job = null
+    /**
+     * 监听 WS 连接状态，每次从非连接态变为 CONNECTED 时触发全局消息同步。
+     * 这是消息握手机制的核心：WS 重连后，用本地最新时间戳向服务器拉取增量消息。
+     */
+    private fun startReconnectSyncListener(scope: CoroutineScope) {
+        if (syncJob?.isActive == true) return
+
+        var wasConnected = false
+
+        syncJob = scope.launch {
+            WebSocketManager.connectionState.collect { state ->
+                if (state == WebSocketManager.ConnectionState.CONNECTED) {
+                    if (!wasConnected) {
+                        // 首次连接或重连成功 → 触发全局同步
+                        Log.d(TAG, "WS connected/reconnected — triggering message sync")
+                        try {
+                            val count = MessageRepository.syncAllMessages()
+                            Log.d(TAG, "Reconnect sync completed: $count new messages")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Reconnect sync failed", e)
+                        }
+                    }
+                    wasConnected = true
+                } else if (state == WebSocketManager.ConnectionState.DISCONNECTED ||
+                           state == WebSocketManager.ConnectionState.RECONNECTING) {
+                    wasConnected = false
+                }
+            }
+        }
+        Log.d(TAG, "Reconnect sync listener started")
     }
 
     private suspend fun handleNewMessage(

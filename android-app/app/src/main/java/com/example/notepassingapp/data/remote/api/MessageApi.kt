@@ -18,6 +18,7 @@ interface MessageApi {
         @Path("session_id") sessionId: String,
         @Query("device_id") deviceId: String,
         @Query("before") before: String? = null,
+        @Query("after") after: String? = null,
         @Query("limit") limit: Int? = null
     ): ApiResponse<MessageHistoryData>
 
@@ -25,4 +26,11 @@ interface MessageApi {
     suspend fun markRead(
         @Body request: MarkReadRequest
     ): ApiResponse<MarkReadData>
+
+    @GET("messages/sync")
+    suspend fun syncMessages(
+        @Query("device_id") deviceId: String,
+        @Query("after") after: String,
+        @Query("limit") limit: Int? = null
+    ): ApiResponse<SyncMessagesData>
 }

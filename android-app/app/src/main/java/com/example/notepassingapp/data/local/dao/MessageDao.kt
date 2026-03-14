@@ -13,6 +13,13 @@ interface MessageDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entity: MessageEntity)
 
+    /** 插入但忽略已存在的消息（用于同步，避免覆盖本地已有数据） */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIgnore(entity: MessageEntity)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIgnoreAll(entities: List<MessageEntity>)
+
     /** 按时间正序，聊天页从上到下显示（按 sessionId） */
     @Query("SELECT * FROM messages WHERE session_id = :sessionId ORDER BY created_at ASC")
     fun getBySessionId(sessionId: String): Flow<List<MessageEntity>>
@@ -56,4 +63,12 @@ interface MessageDao {
 
     @Query("DELETE FROM messages WHERE message_id = :messageId")
     suspend fun delete(messageId: String)
+
+    /** 获取本地最新收到的消息的时间戳（用于增量同步起点） */
+    @Query("SELECT MAX(created_at) FROM messages WHERE receiver_id = :myDeviceId")
+    suspend fun getLatestReceivedTimestamp(myDeviceId: String): Long?
+
+    /** 获取某会话中最新消息的时间戳 */
+    @Query("SELECT MAX(created_at) FROM messages WHERE session_id = :sessionId")
+    suspend fun getLatestTimestampForSession(sessionId: String): Long?
 }
