@@ -25,6 +25,9 @@ interface ChatHistoryDao {
     @Query("SELECT * FROM chat_history WHERE device_id = :deviceId")
     suspend fun getByDeviceId(deviceId: String): ChatHistoryEntity?
 
+    @Query("SELECT * FROM chat_history WHERE device_id = :deviceId LIMIT 1")
+    fun observeByDeviceId(deviceId: String): Flow<ChatHistoryEntity?>
+
     /** 过滤掉被屏蔽的用户后的列表 */
     @Query("""
         SELECT * FROM chat_history 

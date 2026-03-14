@@ -32,6 +32,20 @@ data class FriendRequestData(
     @SerializedName("created_at") val createdAt: String
 )
 
+data class PendingFriendRequestsData(
+    @SerializedName("requests") val requests: List<PendingFriendRequestItemDto>
+)
+
+data class PendingFriendRequestItemDto(
+    @SerializedName("request_id") val requestId: String,
+    @SerializedName("sender_id") val senderId: String,
+    @SerializedName("nickname") val nickname: String,
+    @SerializedName("avatar") val avatar: String?,
+    @SerializedName("tags") val tags: List<String>,
+    @SerializedName("message") val message: String?,
+    @SerializedName("created_at") val createdAt: String
+)
+
 // ===== §5.3 回应好友申请 =====
 
 data class FriendRespondBody(

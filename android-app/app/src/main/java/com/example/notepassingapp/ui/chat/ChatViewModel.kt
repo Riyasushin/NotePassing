@@ -6,13 +6,18 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.notepassingapp.NotePassingApp
 import com.example.notepassingapp.data.local.entity.MessageEntity
+import com.example.notepassingapp.data.local.entity.FriendRequestDirection
+import com.example.notepassingapp.data.model.FriendRequestState
+import com.example.notepassingapp.data.repository.RelationRepository
 import com.example.notepassingapp.data.repository.MessageRepository
 import com.example.notepassingapp.util.DeviceManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class ChatUiState(
@@ -20,6 +25,9 @@ data class ChatUiState(
     val peerNickname: String = "",
     val isFriend: Boolean = false,
     val isSessionExpired: Boolean = false,
+    val friendRequestState: FriendRequestState = FriendRequestState.NONE,
+    val isFriendActionLoading: Boolean = false,
+    val friendStatusMessage: String? = null,
     val inputText: String = "",
     val canSend: Boolean = true,
     val sendLimitMessage: String? = null
@@ -32,6 +40,7 @@ class ChatViewModel(
     private val db = NotePassingApp.instance.database
     private val messageDao = db.messageDao()
     private val friendDao = db.friendDao()
+    private val friendRequestDao = db.friendRequestDao()
     private val chatHistoryDao = db.chatHistoryDao()
     private val myDeviceId = DeviceManager.getDeviceId()
 
@@ -43,25 +52,44 @@ class ChatViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        loadPeerInfo()
+        observePeerInfo()
         observeMessagesForLimit()
         syncOnEntry()
     }
 
-    private fun loadPeerInfo() {
+    private fun observePeerInfo() {
         viewModelScope.launch {
-            val friend = friendDao.getByDeviceId(peerDeviceId)
-            val history = chatHistoryDao.getByDeviceId(peerDeviceId)
-            val nickname = friend?.nickname ?: history?.nickname ?: "未知用户"
-            val isFriend = friend != null
-            val isSessionExpired = history?.isSessionExpired ?: false
+            combine(
+                friendDao.observeByDeviceId(peerDeviceId),
+                chatHistoryDao.observeByDeviceId(peerDeviceId),
+                friendRequestDao.observeByPeer(peerDeviceId)
+            ) { friend, history, pendingRequest ->
+                Triple(friend, history, pendingRequest)
+            }.collect { (friend, history, pendingRequest) ->
+                val nickname = friend?.nickname ?: history?.nickname ?: "未知用户"
+                val isFriend = friend != null
+                val requestState = when {
+                    isFriend -> FriendRequestState.NONE
+                    pendingRequest?.direction == FriendRequestDirection.OUTGOING -> FriendRequestState.OUTGOING_PENDING
+                    pendingRequest?.direction == FriendRequestDirection.INCOMING -> FriendRequestState.INCOMING_PENDING
+                    else -> FriendRequestState.NONE
+                }
 
-            _uiState.value = _uiState.value.copy(
-                peerNickname = nickname,
-                isFriend = isFriend,
-                isSessionExpired = isSessionExpired
-            )
-            checkSendLimit()
+                _uiState.update {
+                    it.copy(
+                        peerNickname = nickname,
+                        isFriend = isFriend,
+                        isSessionExpired = history?.isSessionExpired ?: false,
+                        friendRequestState = requestState,
+                        friendStatusMessage = when (requestState) {
+                            FriendRequestState.OUTGOING_PENDING -> "好友申请已发送，等待对方处理"
+                            FriendRequestState.INCOMING_PENDING -> "对方已向你发送好友申请，请到好友页处理"
+                            FriendRequestState.NONE -> if (isFriend) null else it.friendStatusMessage
+                        }
+                    )
+                }
+                checkSendLimit()
+            }
         }
     }
 
@@ -112,6 +140,31 @@ class ChatViewModel(
                 content = text
             )
             checkSendLimit()
+        }
+    }
+
+    fun sendFriendRequest() {
+        val state = _uiState.value
+        if (state.isFriend || state.friendRequestState != FriendRequestState.NONE || state.isFriendActionLoading) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isFriendActionLoading = true,
+                    friendStatusMessage = null
+                )
+            }
+
+            val result = RelationRepository.sendFriendRequest(peerDeviceId)
+
+            _uiState.update {
+                it.copy(
+                    isFriendActionLoading = false,
+                    friendStatusMessage = result.exceptionOrNull()?.message ?: it.friendStatusMessage
+                )
+            }
         }
     }
 

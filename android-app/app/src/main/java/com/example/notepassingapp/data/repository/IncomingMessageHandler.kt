@@ -4,6 +4,8 @@ import android.util.Log
 import com.example.notepassingapp.NotePassingApp
 import com.example.notepassingapp.data.local.entity.MessageEntity
 import com.example.notepassingapp.data.remote.ws.WebSocketManager
+import com.example.notepassingapp.data.remote.ws.WsFriendRequestPayload
+import com.example.notepassingapp.data.remote.ws.WsFriendResponsePayload
 import com.example.notepassingapp.data.remote.ws.WsNewMessagePayload
 import com.example.notepassingapp.data.remote.ws.WsSessionExpiredPayload
 import com.example.notepassingapp.data.remote.ws.WsTypes
@@ -53,6 +55,8 @@ object IncomingMessageHandler {
                     WsTypes.NEW_MESSAGE -> handleNewMessage(
                         msg, myDeviceId, messageDao, chatHistoryDao
                     )
+                    WsTypes.FRIEND_REQUEST -> handleFriendRequest(msg)
+                    WsTypes.FRIEND_RESPONSE -> handleFriendResponse(msg)
                     WsTypes.SESSION_EXPIRED -> handleSessionExpired(
                         msg, chatHistoryDao
                     )
@@ -144,6 +148,32 @@ object IncomingMessageHandler {
             Log.d(TAG, "Session expired for peer: ${payload.peerDeviceId}, reason: ${payload.reason}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to handle session_expired", e)
+        }
+    }
+
+    private suspend fun handleFriendRequest(
+        msg: com.example.notepassingapp.data.remote.ws.WsServerMessage,
+    ) {
+        if (msg.payload == null) return
+        try {
+            val payload = gson.fromJson(msg.payload, WsFriendRequestPayload::class.java)
+            RelationRepository.saveIncomingFriendRequest(payload)
+            Log.d(TAG, "Saved incoming friend request ${payload.requestId}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to handle friend_request", e)
+        }
+    }
+
+    private suspend fun handleFriendResponse(
+        msg: com.example.notepassingapp.data.remote.ws.WsServerMessage,
+    ) {
+        if (msg.payload == null) return
+        try {
+            val payload = gson.fromJson(msg.payload, WsFriendResponsePayload::class.java)
+            RelationRepository.handleFriendResponse(payload)
+            Log.d(TAG, "Handled friend response ${payload.requestId} status=${payload.status}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to handle friend_response", e)
         }
     }
 }

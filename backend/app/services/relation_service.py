@@ -12,6 +12,8 @@ from app.models.session import Session
 from app.schemas.friendship import (
     FriendItem,
     FriendListResponse,
+    PendingFriendRequestItem,
+    PendingFriendRequestListResponse,
     FriendRequestRequest,
     FriendRequestResponse,
     FriendResponseRequest,
@@ -19,6 +21,7 @@ from app.schemas.friendship import (
     FriendResponseResponse,
 )
 from app.schemas.block import BlockRequest
+from app.services.websocket_manager import push_friend_request, push_friend_response
 from app.utils.validators import validate_device_id
 from app.utils.exceptions import (
     DeviceNotInitializedError,
@@ -36,6 +39,45 @@ settings = get_settings()
 
 class RelationService:
     """Service for relation operations (friendship and block)."""
+
+    @staticmethod
+    async def get_pending_requests(
+        db: AsyncSession,
+        device_id: str,
+    ) -> PendingFriendRequestListResponse:
+        """Get incoming pending friend requests for a device."""
+        validate_device_id(device_id)
+
+        device_result = await db.execute(
+            select(Device).where(Device.device_id == device_id)
+        )
+        if not device_result.scalar_one_or_none():
+            raise DeviceNotInitializedError()
+
+        result = await db.execute(
+            select(Friendship, Device)
+            .join(Device, Device.device_id == Friendship.sender_id)
+            .where(
+                Friendship.receiver_id == device_id,
+                Friendship.status == "pending",
+            )
+            .order_by(Friendship.created_at.desc())
+        )
+
+        requests = [
+            PendingFriendRequestItem(
+                request_id=friendship.request_id,
+                sender_id=sender.device_id,
+                nickname=sender.nickname,
+                avatar=sender.avatar,
+                tags=sender.tags or [],
+                message=friendship.message,
+                created_at=friendship.created_at,
+            )
+            for friendship, sender in result.all()
+        ]
+
+        return PendingFriendRequestListResponse(requests=requests)
     
     @staticmethod
     async def get_friends(
@@ -118,7 +160,8 @@ class RelationService:
         sender_result = await db.execute(
             select(Device).where(Device.device_id == data.sender_id)
         )
-        if not sender_result.scalar_one_or_none():
+        sender = sender_result.scalar_one_or_none()
+        if not sender:
             raise DeviceNotInitializedError()
         
         receiver_result = await db.execute(
@@ -175,6 +218,20 @@ class RelationService:
                 existing.updated_at = datetime.utcnow()
                 
                 await db.flush()
+
+                await push_friend_request(
+                    data.receiver_id,
+                    {
+                        "request_id": existing.request_id,
+                        "sender": {
+                            "device_id": sender.device_id,
+                            "nickname": sender.nickname,
+                            "avatar": sender.avatar,
+                            "tags": sender.tags or [],
+                        },
+                        "message": data.message,
+                    },
+                )
                 
                 return FriendRequestResponse(
                     request_id=existing.request_id,
@@ -194,6 +251,20 @@ class RelationService:
         )
         db.add(friendship)
         await db.flush()
+
+        await push_friend_request(
+            data.receiver_id,
+            {
+                "request_id": friendship.request_id,
+                "sender": {
+                    "device_id": sender.device_id,
+                    "nickname": sender.nickname,
+                    "avatar": sender.avatar,
+                    "tags": sender.tags or [],
+                },
+                "message": data.message,
+            },
+        )
         
         return FriendRequestResponse(
             request_id=friendship.request_id,
@@ -240,6 +311,11 @@ class RelationService:
             # Update friendship status
             friendship.status = "accepted"
             friendship.updated_at = datetime.utcnow()
+
+            receiver_result = await db.execute(
+                select(Device).where(Device.device_id == friendship.receiver_id)
+            )
+            receiver = receiver_result.scalar_one()
             
             # Get or create permanent session
             session = await RelationService._get_or_create_permanent_session(
@@ -253,6 +329,19 @@ class RelationService:
             sender = sender_result.scalar_one()
             
             await db.flush()
+
+            await push_friend_response(
+                friendship.sender_id,
+                {
+                    "request_id": friendship.request_id,
+                    "status": "accepted",
+                    "friend": {
+                        "device_id": receiver.device_id,
+                        "nickname": receiver.nickname,
+                    },
+                    "session_id": session.session_id,
+                },
+            )
             
             return FriendResponseResponse(
                 request_id=friendship.request_id,
@@ -271,6 +360,16 @@ class RelationService:
             friendship.updated_at = datetime.utcnow()
             
             await db.flush()
+
+            await push_friend_response(
+                friendship.sender_id,
+                {
+                    "request_id": friendship.request_id,
+                    "status": "rejected",
+                    "friend": None,
+                    "session_id": None,
+                },
+            )
             
             return FriendResponseResponse(
                 request_id=friendship.request_id,

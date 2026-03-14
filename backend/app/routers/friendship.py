@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from app.dependencies import DbDep
 from app.schemas.friendship import (
     FriendListResponse,
+    PendingFriendRequestListResponse,
     FriendRequestRequest,
     FriendRequestResponse,
     FriendResponseRequest,
@@ -27,6 +28,16 @@ async def get_friends(
     - Includes friend profile information
     """
     result = await RelationService.get_friends(db, device_id)
+    return success_response(data=result.model_dump())
+
+
+@router.get("/requests", response_model=dict)
+async def get_pending_requests(
+    device_id: str,
+    db: DbDep,
+) -> dict:
+    """Get incoming pending friend requests for a device."""
+    result = await RelationService.get_pending_requests(db, device_id)
     return success_response(data=result.model_dump())
 
 

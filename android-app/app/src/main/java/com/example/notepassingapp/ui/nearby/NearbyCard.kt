@@ -21,24 +21,45 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.notepassingapp.data.model.FriendRequestState
 import com.example.notepassingapp.data.model.NearbyState
 import com.example.notepassingapp.data.model.NearbyUser
+import kotlinx.coroutines.delay
 
 @Composable
 fun NearbyCard(
     user: NearbyUser,
-    onClick: () -> Unit
+    isFriendRequestProcessing: Boolean = false,
+    onClick: () -> Unit,
+    onAddFriend: () -> Unit = {}
 ) {
     val isGrace = user.state == NearbyState.GRACE
     val contentAlpha = if (isGrace) 0.5f else 1f
+    val graceRemainingSeconds by produceState(
+        initialValue = calculateGraceRemainingSeconds(user.leftAt),
+        key1 = isGrace,
+        key2 = user.leftAt
+    ) {
+        if (!isGrace || user.leftAt == null) return@produceState
+
+        while (true) {
+            val remaining = calculateGraceRemainingSeconds(user.leftAt)
+            value = remaining
+            if (remaining <= 0) break
+            delay(1000)
+        }
+    }
 
     Card(
         modifier = Modifier
@@ -134,11 +155,8 @@ fun NearbyCard(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 if (isGrace) {
-                    val secondsAgo = user.leftAt?.let {
-                        ((System.currentTimeMillis() - it) / 1000).toInt()
-                    } ?: 0
                     Text(
-                        text = "已离开 ${secondsAgo}s",
+                        text = "可聊天 ${graceRemainingSeconds}s",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -157,9 +175,37 @@ fun NearbyCard(
                         color = MaterialTheme.colorScheme.outline
                     )
                 }
+
+                if (!user.isFriend) {
+                    TextButton(
+                        onClick = onAddFriend,
+                        enabled = !isFriendRequestProcessing && user.friendRequestState == FriendRequestState.NONE,
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        Text(friendActionLabel(user.friendRequestState, isFriendRequestProcessing))
+                    }
+                }
             }
         }
     }
+}
+
+private fun friendActionLabel(
+    state: FriendRequestState,
+    isProcessing: Boolean
+): String {
+    return when {
+        isProcessing -> "发送中"
+        state == FriendRequestState.OUTGOING_PENDING -> "已申请"
+        state == FriendRequestState.INCOMING_PENDING -> "待处理"
+        else -> "加好友"
+    }
+}
+
+private fun calculateGraceRemainingSeconds(leftAt: Long?): Int {
+    if (leftAt == null) return 60
+    val elapsedSeconds = ((System.currentTimeMillis() - leftAt) / 1000).toInt()
+    return maxOf(0, 60 - elapsedSeconds)
 }
 
 private fun formatRelativeTime(timestamp: Long): String {

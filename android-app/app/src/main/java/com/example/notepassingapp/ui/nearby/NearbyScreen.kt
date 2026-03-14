@@ -25,6 +25,7 @@ fun NearbyScreen(
 ) {
     val nearbyUsers by viewModel.nearbyUsers.collectAsState()
     val bleState by viewModel.bleState.collectAsState()
+    val processingRequestIds by viewModel.processingRequestIds.collectAsState()
     val context = LocalContext.current
 
     var permissionsGranted by remember {
@@ -98,7 +99,9 @@ fun NearbyScreen(
                 ) { user ->
                     NearbyCard(
                         user = user,
-                        onClick = { onUserClick(user.deviceId) }
+                        isFriendRequestProcessing = user.deviceId in processingRequestIds,
+                        onClick = { onUserClick(user.deviceId) },
+                        onAddFriend = { viewModel.sendFriendRequest(user) }
                     )
                 }
                 if (nearbyUsers.isNotEmpty()) {

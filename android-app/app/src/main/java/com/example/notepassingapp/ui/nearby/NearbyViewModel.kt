@@ -8,18 +8,26 @@ import com.example.notepassingapp.NotePassingApp
 import com.example.notepassingapp.ble.BleManager
 import com.example.notepassingapp.ble.BleForegroundService
 import com.example.notepassingapp.data.local.entity.ChatHistoryEntity
+import com.example.notepassingapp.data.local.entity.FriendRequestDirection
+import com.example.notepassingapp.data.model.FriendRequestState
 import com.example.notepassingapp.data.model.NearbyState
 import com.example.notepassingapp.data.model.NearbyUser
+import com.example.notepassingapp.data.repository.RelationRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class NearbyViewModel(application: Application) : AndroidViewModel(application) {
 
     private val chatHistoryDao = NotePassingApp.instance.database.chatHistoryDao()
+    private val friendRequestDao = NotePassingApp.instance.database.friendRequestDao()
 
     private val _realtimeStates = MutableStateFlow<Map<String, RealtimeState>>(emptyMap())
+    private val _processingRequestIds = MutableStateFlow<Set<String>>(emptySet())
 
     val bleState = BleManager.state
+    val processingRequestIds: StateFlow<Set<String>> = _processingRequestIds.asStateFlow()
 
     data class RealtimeState(
         val state: NearbyState = NearbyState.ACTIVE,
@@ -30,13 +38,22 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         observeBleUpdates()
+        startGraceExpiryTicker()
     }
 
-    val nearbyUsers: StateFlow<List<NearbyUser>> = chatHistoryDao
-        .getAllExcludeBlocked()
-        .combine(_realtimeStates) { historyList, states ->
+    val nearbyUsers: StateFlow<List<NearbyUser>> = combine(
+        chatHistoryDao.getAllExcludeBlocked(),
+        _realtimeStates,
+        friendRequestDao.getAll()
+    ) { historyList, states, pendingRequests ->
+            val pendingByPeer = pendingRequests.associateBy { it.peerDeviceId }
             historyList
-                .map { entity -> entity.toNearbyUser(states[entity.deviceId]) }
+                .map { entity ->
+                    entity.toNearbyUser(
+                        rt = states[entity.deviceId],
+                        friendRequestState = pendingByPeer[entity.deviceId].toFriendRequestState(entity.isFriend)
+                    )
+                }
                 .filter { it.state != NearbyState.EXPIRED }
                 .sortedWith(nearbyComparator())
         }
@@ -62,12 +79,12 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
                     
                     // Handle devices that left ACTIVE state (enter GRACE)
                     current.forEach { (id, rt) ->
-                        if (id !in newStates && rt.state == NearbyState.ACTIVE) {
+                        if (id !in newStates && rt.state != NearbyState.EXPIRED) {
                             val leftAt = rt.leftAt ?: now
                             if (now - leftAt < 60_000) {
                                 merged[id] = rt.copy(state = NearbyState.GRACE, leftAt = leftAt)
                             } else {
-                                merged[id] = rt.copy(state = NearbyState.EXPIRED)
+                                merged[id] = rt.copy(state = NearbyState.EXPIRED, leftAt = leftAt)
                                 // Check if this is a non-friend entering EXPIRED
                                 if (isNonFriend(id)) {
                                     newlyExpiredNonFriends.add(id)
@@ -97,6 +114,43 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
+
+    private fun startGraceExpiryTicker() {
+        viewModelScope.launch {
+            while (isActive) {
+                delay(1000)
+                expireGraceUsers()
+            }
+        }
+    }
+
+    private suspend fun expireGraceUsers() {
+        val now = System.currentTimeMillis()
+        val expiredIds = _realtimeStates.value
+            .filterValues { rt ->
+                rt.state == NearbyState.GRACE &&
+                    rt.leftAt != null &&
+                    now - rt.leftAt >= 60_000
+            }
+            .keys
+
+        if (expiredIds.isEmpty()) return
+
+        _realtimeStates.update { current ->
+            current.mapValues { (id, rt) ->
+                if (id in expiredIds) {
+                    rt.copy(state = NearbyState.EXPIRED)
+                } else {
+                    rt
+                }
+            }
+        }
+
+        val newlyExpiredNonFriends = expiredIds.filter { isNonFriend(it) }
+        if (newlyExpiredNonFriends.isNotEmpty()) {
+            markNonFriendSessionsExpired(newlyExpiredNonFriends)
+        }
+    }
     
     private suspend fun isNonFriend(deviceId: String): Boolean {
         val entity = chatHistoryDao.getByDeviceId(deviceId)
@@ -124,6 +178,23 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
         BleForegroundService.stop(getApplication())
     }
 
+    fun sendFriendRequest(user: NearbyUser) {
+        if (user.isFriend || user.friendRequestState != FriendRequestState.NONE) return
+        if (user.deviceId in _processingRequestIds.value) return
+
+        viewModelScope.launch {
+            _processingRequestIds.update { it + user.deviceId }
+            try {
+                val result = RelationRepository.sendFriendRequest(user.deviceId)
+                result.exceptionOrNull()?.let { error ->
+                    Log.e("NearbyViewModel", "Failed to send friend request to ${user.deviceId}", error)
+                }
+            } finally {
+                _processingRequestIds.update { it - user.deviceId }
+            }
+        }
+    }
+
     private fun nearbyComparator(): Comparator<NearbyUser> = compareBy<NearbyUser> { user ->
         when {
             user.state == NearbyState.ACTIVE && user.isFriend -> 0
@@ -134,7 +205,10 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
     }.thenByDescending { it.rssi }
         .thenBy { it.leftAt ?: Long.MAX_VALUE }
 
-    private suspend fun ChatHistoryEntity.toNearbyUser(rt: RealtimeState?): NearbyUser {
+    private suspend fun ChatHistoryEntity.toNearbyUser(
+        rt: RealtimeState?,
+        friendRequestState: FriendRequestState
+    ): NearbyUser {
         val effectiveState = if (isSessionExpired && !isFriend) {
             // Session expired non-friends are always EXPIRED
             NearbyState.EXPIRED
@@ -160,10 +234,22 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
             rssi = rt?.rssi ?: -100,
             distanceEstimate = rt?.distanceEstimate ?: 0f,
             leftAt = rt?.leftAt,
+            friendRequestState = friendRequestState,
             sessionId = sessionId,
             lastMessage = lastMessage,
             lastMessageAt = lastMessageAt
         )
+    }
+
+    private fun com.example.notepassingapp.data.local.entity.FriendRequestEntity?.toFriendRequestState(
+        isFriend: Boolean
+    ): FriendRequestState {
+        if (isFriend) return FriendRequestState.NONE
+        return when (this?.direction) {
+            FriendRequestDirection.OUTGOING -> FriendRequestState.OUTGOING_PENDING
+            FriendRequestDirection.INCOMING -> FriendRequestState.INCOMING_PENDING
+            else -> FriendRequestState.NONE
+        }
     }
 
     // ---- 测试用，后续删除 ----

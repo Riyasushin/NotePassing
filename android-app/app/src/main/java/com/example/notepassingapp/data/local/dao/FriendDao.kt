@@ -24,6 +24,9 @@ interface FriendDao {
     @Query("SELECT * FROM friends WHERE device_id = :deviceId")
     suspend fun getByDeviceId(deviceId: String): FriendEntity?
 
+    @Query("SELECT * FROM friends WHERE device_id = :deviceId LIMIT 1")
+    fun observeByDeviceId(deviceId: String): Flow<FriendEntity?>
+
     @Query("SELECT EXISTS(SELECT 1 FROM friends WHERE device_id = :deviceId)")
     suspend fun isFriend(deviceId: String): Boolean
 

@@ -120,6 +120,7 @@ object BleManager {
         scanLoopJob?.cancel()
         scanLoopJob = scope.launch {
             while (isActive) {
+                resetScanWindow()
                 scanner?.start()
                 _state.update { it.copy(isScanning = true) }
 
@@ -129,7 +130,6 @@ object BleManager {
                 _state.update { it.copy(isScanning = false) }
 
                 resolveAndUpdate()
-                cleanStale()
 
                 delay(BleConstants.SCAN_INTERVAL_MS - BleConstants.SCAN_DURATION_MS)
             }
@@ -151,11 +151,9 @@ object BleManager {
     private suspend fun resolveAndUpdate() {
         val snapshot = synchronized(bleFindMap) { bleFindMap.values.toList() }
         if (snapshot.isEmpty()) {
-            // Check if any previously nearby friends have left
             val leftFriends = checkForLeftFriends(emptySet())
-            if (leftFriends.isNotEmpty()) {
-                _nearbyUpdate.tryEmit(NearbyUpdateEvent(emptyList(), emptyList(), leftFriends))
-            }
+            _nearbyUpdate.tryEmit(NearbyUpdateEvent(emptyList(), emptyList(), leftFriends))
+            Log.d(TAG, "Resolved 0 devices, 0 boosts, ${leftFriends.size} friends left")
             return
         }
 
@@ -219,6 +217,13 @@ object BleManager {
         _nearbyUpdate.tryEmit(NearbyUpdateEvent(resolved, boostIds, leftFriends))
         Log.d(TAG, "Resolved ${resolved.size} devices, ${boostIds.size} boosts, ${leftFriends.size} friends left")
     }
+
+    private fun resetScanWindow() {
+        synchronized(bleFindMap) {
+            bleFindMap.clear()
+        }
+        _state.update { it.copy(foundCount = 0) }
+    }
     
     /**
      * Update friend's nearby status and increment meet count if newly nearby
@@ -243,14 +248,6 @@ object BleManager {
             nearbyFriendIds.removeAll(leftFriends.toSet())
             return leftFriends
         }
-    }
-
-    private fun cleanStale() {
-        val cutoff = System.currentTimeMillis() - BleConstants.STALE_CLEANUP_MS
-        synchronized(bleFindMap) {
-            bleFindMap.entries.removeAll { it.value.timestamp < cutoff }
-        }
-        _state.update { it.copy(foundCount = bleFindMap.size) }
     }
 
     // ---------- util ----------

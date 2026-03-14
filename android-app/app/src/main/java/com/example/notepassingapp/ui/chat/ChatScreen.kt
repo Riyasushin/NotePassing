@@ -21,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -30,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.notepassingapp.data.model.FriendRequestState
 import com.example.notepassingapp.util.DeviceManager
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,6 +61,15 @@ fun ChatScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
+                },
+                actions = {
+                    if (!uiState.isFriend) {
+                        FriendActionButton(
+                            state = uiState.friendRequestState,
+                            loading = uiState.isFriendActionLoading,
+                            onClick = { viewModel.sendFriendRequest() }
+                        )
+                    }
                 }
             )
         }
@@ -69,6 +80,15 @@ fun ChatScreen(
                 .padding(innerPadding)
                 .imePadding()  // 键盘弹出时自动上推
         ) {
+            uiState.friendStatusMessage?.let { msg ->
+                Text(
+                    text = msg,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+
             // 消息列表
             LazyColumn(
                 state = listState,
@@ -130,5 +150,24 @@ fun ChatScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FriendActionButton(
+    state: FriendRequestState,
+    loading: Boolean,
+    onClick: () -> Unit
+) {
+    val label = when {
+        loading -> "发送中"
+        state == FriendRequestState.OUTGOING_PENDING -> "已申请"
+        state == FriendRequestState.INCOMING_PENDING -> "待处理"
+        else -> "加好友"
+    }
+    val enabled = !loading && state == FriendRequestState.NONE
+
+    TextButton(onClick = onClick, enabled = enabled) {
+        Text(label)
     }
 }

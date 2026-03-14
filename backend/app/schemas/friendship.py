@@ -34,6 +34,22 @@ class FriendRequestResponse(BaseModel):
     created_at: datetime
 
 
+class PendingFriendRequestItem(BaseModel):
+    """Pending incoming friend request item."""
+    request_id: str
+    sender_id: str
+    nickname: str
+    avatar: Optional[str] = None
+    tags: List[str]
+    message: Optional[str] = None
+    created_at: datetime
+
+
+class PendingFriendRequestListResponse(BaseModel):
+    """Pending incoming friend requests response."""
+    requests: List[PendingFriendRequestItem]
+
+
 class FriendResponseRequest(BaseModel):
     """Respond to friend request."""
     device_id: str = Field(..., min_length=32, max_length=32)

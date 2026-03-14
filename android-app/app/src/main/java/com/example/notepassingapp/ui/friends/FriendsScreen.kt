@@ -4,22 +4,29 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.notepassingapp.data.local.entity.FriendRequestEntity
 
 @Composable
 fun FriendsScreen(
@@ -27,6 +34,12 @@ fun FriendsScreen(
     viewModel: FriendsViewModel = viewModel()
 ) {
     val friends by viewModel.friends.collectAsState()
+    val incomingRequests by viewModel.incomingRequests.collectAsState()
+    val processingRequestIds by viewModel.processingRequestIds.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshIncomingRequests()
+    }
 
     Column(
         modifier = Modifier
@@ -39,7 +52,7 @@ fun FriendsScreen(
             modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
         )
 
-        if (friends.isEmpty()) {
+        if (friends.isEmpty() && incomingRequests.isEmpty()) {
             // 空状态
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -68,6 +81,37 @@ fun FriendsScreen(
                 contentPadding = PaddingValues(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (incomingRequests.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "好友申请",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                    }
+                    items(
+                        items = incomingRequests,
+                        key = { it.requestId }
+                    ) { request ->
+                        FriendRequestCard(
+                            request = request,
+                            processing = request.requestId in processingRequestIds,
+                            onAccept = { viewModel.acceptFriendRequest(request.requestId) },
+                            onReject = { viewModel.rejectFriendRequest(request.requestId) }
+                        )
+                    }
+                }
+
+                if (friends.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "我的好友",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(top = if (incomingRequests.isNotEmpty()) 8.dp else 0.dp, bottom = 4.dp)
+                        )
+                    }
+                }
+
                 items(
                     items = friends,
                     key = { it.deviceId }
@@ -77,11 +121,57 @@ fun FriendsScreen(
                         onClick = { onFriendClick(friend.deviceId) }
                     )
                 }
-                // 测试用，后续删除
-                item {
-                    OutlinedButton(onClick = { viewModel.clearTestFriends() }) {
-                        Text("清除测试数据")
+                if (friends.isNotEmpty()) {
+                    item {
+                        OutlinedButton(onClick = { viewModel.clearTestFriends() }) {
+                            Text("清除测试数据")
+                        }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FriendRequestCard(
+    request: FriendRequestEntity,
+    processing: Boolean,
+    onAccept: () -> Unit,
+    onReject: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = request.peerNickname,
+                style = MaterialTheme.typography.titleMedium
+            )
+            request.message?.takeIf { it.isNotBlank() }?.let { message ->
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onReject,
+                    enabled = !processing
+                ) {
+                    Text("拒绝")
+                }
+                Button(
+                    onClick = onAccept,
+                    enabled = !processing
+                ) {
+                    Text(if (processing) "处理中" else "接受")
                 }
             }
         }

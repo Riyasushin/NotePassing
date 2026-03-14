@@ -53,7 +53,6 @@ class BleAdvertiser(private val context: Context) {
 
         val serviceUuid = ParcelUuid(BleConstants.SERVICE_UUID)
         val data = AdvertiseData.Builder()
-            .addServiceUuid(serviceUuid)
             .addServiceData(serviceUuid, hexToBytes(tempIdHex))
             .setIncludeDeviceName(false)
             .setIncludeTxPowerLevel(false)

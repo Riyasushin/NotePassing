@@ -13,6 +13,11 @@ interface RelationApi {
         @Query("device_id") deviceId: String
     ): ApiResponse<FriendsListData>
 
+    @GET("friends/requests")
+    suspend fun getPendingRequests(
+        @Query("device_id") deviceId: String
+    ): ApiResponse<PendingFriendRequestsData>
+
     @POST("friends/request")
     suspend fun sendFriendRequest(
         @Body request: FriendRequestBody

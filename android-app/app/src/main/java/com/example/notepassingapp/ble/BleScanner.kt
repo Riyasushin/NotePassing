@@ -2,7 +2,6 @@ package com.example.notepassingapp.ble
 
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
@@ -65,16 +64,13 @@ class BleScanner(private val context: Context) {
             return
         }
 
-        val filter = ScanFilter.Builder()
-            .setServiceUuid(ParcelUuid(BleConstants.SERVICE_UUID))
-            .build()
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .setReportDelay(0)
             .build()
 
         try {
-            bleScanner.startScan(listOf(filter), settings, callback)
+            bleScanner.startScan(null, settings, callback)
             scanning = true
         } catch (e: SecurityException) {
             Log.e(TAG, "Permission denied", e)
