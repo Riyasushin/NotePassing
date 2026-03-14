@@ -1,9 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- 开发环境：允许局域网 HTTP 明文通信 -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">192.168.8.8</domain>
-        <domain includeSubdomains="true">10.0.2.2</domain>
-        <domain includeSubdomains="true">localhost</domain>
-    </domain-config>
+    <!-- 开发环境：允许通过 Gradle/环境变量切换局域网 HTTP 地址 -->
+    <base-config cleartextTrafficPermitted="true" />
 </network-security-config>

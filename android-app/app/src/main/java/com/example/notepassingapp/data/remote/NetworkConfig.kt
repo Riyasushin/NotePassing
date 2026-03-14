@@ -1,8 +1,15 @@
 package com.example.notepassingapp.data.remote
 
+import com.example.notepassingapp.BuildConfig
+
 object NetworkConfig {
-    const val BASE_URL = "http://192.168.8.8:8000/api/v1/"
-    const val WS_URL = "ws://192.168.8.8:8000/api/v1/ws"
+    private const val REST_SCHEME = "http"
+    private const val WS_SCHEME = "ws"
+    private const val API_PREFIX = "/api/v1"
+
+    val SERVER_HOST: String = BuildConfig.SERVER_HOST
+    val BASE_URL: String = "$REST_SCHEME://$SERVER_HOST$API_PREFIX/"
+    val WS_URL: String = "$WS_SCHEME://$SERVER_HOST$API_PREFIX/ws"
 
     const val CONNECT_TIMEOUT_SEC = 10L
     const val READ_TIMEOUT_SEC = 30L

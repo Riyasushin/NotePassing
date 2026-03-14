@@ -1,6 +1,7 @@
 package com.example.notepassingapp.ui.nearby
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.notepassingapp.NotePassingApp

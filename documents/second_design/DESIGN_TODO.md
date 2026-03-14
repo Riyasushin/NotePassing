@@ -130,8 +130,8 @@
 
 **当前代码现状（重要）**：
 - Unified Contract 与 Backend Router 当前仍是 `/block`（单数）
-- Android `RelationApi` 当前调用的是 `/blocks` 和 `/blocks/{target_device_id}`（复数）
-- 所以“路径已修复”这句话目前不成立，联调仍有风险
+- Android `RelationApi` 已改回 `/block` 和 `/block/{target_device_id}`（单数）
+- 当前 Android / Backend / Unified Contract 三方已一致
 
 **最小成本方案**：
 - 直接把 Android 端改回 `/block` 和 `/block/{target_device_id}`
@@ -148,7 +148,7 @@
 - 因此这里应以 Contract / 当前代码为准
 - 服务器 README 中“Strangers (Public) 下 profile Hidden”更像旧说明，应视为过期
 
-**状态**：⚠️ 路径差异未真正修复；隐私可见性以当前 Contract + Backend 实现为准
+**状态**：✅ 路径已对齐；隐私可见性以当前 Contract + Backend 实现为准
 
 ---
 
