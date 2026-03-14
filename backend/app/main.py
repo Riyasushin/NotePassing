@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.utils.exceptions import setup_exception_handlers
-from app.routers import device, temp_id, message, friendship, block, websocket as ws_router
+from app.routers import device, temp_id, message, friendship, block, presence, websocket as ws_router
 
 settings = get_settings()
 
@@ -37,6 +37,7 @@ def create_app() -> FastAPI:
     app.include_router(message.router, prefix="/api/v1")
     app.include_router(friendship.router, prefix="/api/v1")
     app.include_router(block.router, prefix="/api/v1")
+    app.include_router(presence.router, prefix="/api/v1")
     
     # Include WebSocket router
     app.include_router(ws_router.router)
