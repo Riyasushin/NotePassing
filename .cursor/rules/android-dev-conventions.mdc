@@ -1,0 +1,40 @@
+---
+description: Android Kotlin 开发规范
+globs: android-app/**/*.kt
+alwaysApply: false
+---
+
+# Android 开发规范
+
+## 技术栈
+
+- Kotlin + Jetpack Compose + Material3
+- MVVM：Activity/Screen → ViewModel → Repository → Room/Network
+- Coroutines + Flow 处理异步
+- Navigation Compose 页面路由
+
+## 架构分层
+
+```
+ui/          → Composable 函数 + Screen
+viewmodel/   → StateFlow 驱动 UI，不持有 Context
+repository/  → 数据来源决策（本地 vs 远程）
+data/local/  → Room Entity / DAO / Database
+data/remote/ → Retrofit API / WebSocket（Phase 7+）
+```
+
+## MVP 轻量化原则
+
+- 状态管理：ViewModel + StateFlow，不引入额外状态库
+- 依赖注入：手动单例（object / companion），不用 Hilt/Dagger
+- 图片加载：Coil（轻量）
+- JSON：Gson（够用即可）
+- 配置存储：SharedPreferences（简单 key-value，不需要 DataStore）
+
+## 代码风格
+
+- Composable 函数名用 PascalCase：`NearbyCard()`, `ChatBubble()`
+- ViewModel 暴露 `StateFlow`，不暴露 `MutableStateFlow`
+- Repository 方法用 suspend 或返回 Flow
+- Entity 字段用 snake_case 对齐 API 字段
+- 一个文件只放一个 Screen Composable + 其私有子组件

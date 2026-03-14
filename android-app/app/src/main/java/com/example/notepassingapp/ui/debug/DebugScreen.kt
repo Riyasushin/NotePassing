@@ -1,0 +1,324 @@
+package com.example.notepassingapp.ui.debug
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.notepassingapp.ble.BleManager
+import com.example.notepassingapp.data.remote.HttpLogEntry
+import java.text.SimpleDateFormat
+import java.util.*
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DebugScreen(
+    onBack: () -> Unit,
+    viewModel: DebugViewModel = viewModel()
+) {
+    val logs by viewModel.logs.collectAsState()
+    val httpLogs by viewModel.httpLogs.collectAsState()
+    val wsState by viewModel.wsState.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val selectedTab by viewModel.selectedTab.collectAsState()
+    val bleState by viewModel.bleState.collectAsState()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("调试面板") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.clearLogs() }) {
+                        Icon(Icons.Default.Delete, contentDescription = "清除日志")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            StatusBar(
+            wsState = wsState,
+            isLoading = isLoading,
+            bleRunning = bleState.running,
+            bleFound = bleState.foundCount
+        )
+            HorizontalDivider()
+
+            ApiTestButtons(
+                isLoading = isLoading,
+                onServerPing = { viewModel.testServerPing() },
+                onDeviceInit = { viewModel.testDeviceInit() },
+                onSyncProfile = { viewModel.testSyncProfile() },
+                onRefreshTempId = { viewModel.testRefreshTempId() },
+                onSyncFriends = { viewModel.testSyncFriends() },
+                onWsConnect = { viewModel.testWsConnect() },
+                onWsDisconnect = { viewModel.testWsDisconnect() },
+                onWsPing = { viewModel.testWsPing() }
+            )
+
+            HorizontalDivider()
+
+            TabRow(selectedTabIndex = selectedTab) {
+                Tab(selected = selectedTab == 0, onClick = { viewModel.selectTab(0) }) {
+                    Text("日志", modifier = Modifier.padding(12.dp))
+                }
+                Tab(selected = selectedTab == 1, onClick = { viewModel.selectTab(1) }) {
+                    Text("明文 (${httpLogs.size})", modifier = Modifier.padding(12.dp))
+                }
+            }
+
+            when (selectedTab) {
+                0 -> LogTab(logs)
+                1 -> HttpRawTab(httpLogs)
+            }
+        }
+    }
+}
+
+// ===== 状态栏 =====
+
+@Composable
+private fun StatusBar(wsState: String, isLoading: Boolean, bleRunning: Boolean, bleFound: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val wsColor = when (wsState) {
+                "CONNECTED" -> Color(0xFF4CAF50)
+                "CONNECTING", "RECONNECTING" -> Color(0xFFFFC107)
+                else -> Color(0xFFF44336)
+            }
+            Box(modifier = Modifier.size(10.dp).background(wsColor, RoundedCornerShape(5.dp)))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("WS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.width(12.dp))
+
+            val bleColor = if (bleRunning) Color(0xFF2196F3) else Color(0xFF757575)
+            Box(modifier = Modifier.size(10.dp).background(bleColor, RoundedCornerShape(5.dp)))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                if (bleRunning) "BLE($bleFound)" else "BLE off",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        if (isLoading) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+        }
+    }
+}
+
+// ===== API 测试按钮 =====
+
+@Composable
+private fun ApiTestButtons(
+    isLoading: Boolean,
+    onServerPing: () -> Unit,
+    onDeviceInit: () -> Unit,
+    onSyncProfile: () -> Unit,
+    onRefreshTempId: () -> Unit,
+    onSyncFriends: () -> Unit,
+    onWsConnect: () -> Unit,
+    onWsDisconnect: () -> Unit,
+    onWsPing: () -> Unit
+) {
+    Column(modifier = Modifier.padding(8.dp)) {
+        Text("REST API", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            DebugButton("连通测试", isLoading, onServerPing)
+            DebugButton("device/init", isLoading, onDeviceInit)
+            DebugButton("sync profile", isLoading, onSyncProfile)
+            DebugButton("refresh tempId", isLoading, onRefreshTempId)
+            DebugButton("sync friends", isLoading, onSyncFriends)
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text("WebSocket", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            DebugButton("WS 连接", isLoading, onWsConnect)
+            DebugButton("WS 断开", isLoading, onWsDisconnect)
+            DebugButton("WS Ping", isLoading, onWsPing)
+        }
+    }
+}
+
+@Composable
+private fun DebugButton(text: String, isLoading: Boolean, onClick: () -> Unit) {
+    FilledTonalButton(
+        onClick = onClick,
+        enabled = !isLoading,
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(8.dp)
+    ) { Text(text, fontSize = 12.sp) }
+}
+
+// ===== Tab 1: 日志 =====
+
+@Composable
+private fun LogTab(logs: List<LogEntry>) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(logs.size) {
+        if (logs.isNotEmpty()) listState.animateScrollToItem(logs.size - 1)
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize().background(Color(0xFF1E1E1E)).padding(8.dp)
+    ) {
+        items(logs) { entry -> LogEntryRow(entry) }
+    }
+}
+
+@Composable
+private fun LogEntryRow(entry: LogEntry) {
+    val tagColor = when (entry.tag) {
+        "请求" -> Color(0xFF64B5F6)
+        "响应" -> Color(0xFF81C784)
+        "错误" -> Color(0xFFE57373)
+        "WebSocket" -> Color(0xFFFFD54F)
+        "配置" -> Color(0xFFB0BEC5)
+        "设备" -> Color(0xFFCE93D8)
+        "WS原始" -> Color(0xFFFFAB40)
+        "WS解析" -> Color(0xFF4FC3F7)
+        "BLE" -> Color(0xFF2196F3)
+        else -> Color(0xFF90A4AE)
+    }
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Row {
+            Text(entry.time, color = Color(0xFF757575), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("[${entry.tag}]", color = tagColor, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+        }
+        Text(
+            entry.message,
+            color = if (entry.isError) Color(0xFFE57373) else Color(0xFFE0E0E0),
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.padding(start = 4.dp, top = 1.dp)
+        )
+    }
+}
+
+// ===== Tab 2: 明文 =====
+
+@Composable
+private fun HttpRawTab(httpLogs: List<HttpLogEntry>) {
+    val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Color(0xFF1A1A2E)).padding(8.dp)
+    ) {
+        items(httpLogs) { entry ->
+            HttpRawCard(entry, timeFormat)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun HttpRawCard(entry: HttpLogEntry, timeFormat: SimpleDateFormat) {
+    val path = entry.url.substringAfter("/api/v1/").substringBefore("?")
+    val statusColor = if (entry.responseCode in 200..299) Color(0xFF4CAF50) else Color(0xFFE57373)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF16213E))
+    ) {
+        Column(modifier = Modifier.padding(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "${entry.method} /$path",
+                    color = Color(0xFF64B5F6),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+                Text(
+                    "${entry.responseCode} · ${entry.durationMs}ms",
+                    color = statusColor,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+
+            Text(
+                timeFormat.format(Date(entry.timestamp)),
+                color = Color(0xFF757575),
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace
+            )
+
+            if (!entry.requestBody.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("▶ Request", color = Color(0xFFFFD54F), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    formatJson(entry.requestBody),
+                    color = Color(0xFFE0E0E0),
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF0F3460), RoundedCornerShape(4.dp))
+                        .padding(6.dp)
+                )
+            }
+
+            if (!entry.responseBody.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("◀ Response", color = Color(0xFF81C784), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    formatJson(entry.responseBody),
+                    color = Color(0xFFE0E0E0),
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF0F3460), RoundedCornerShape(4.dp))
+                        .padding(6.dp)
+                )
+            }
+        }
+    }
+}
+
+private fun formatJson(raw: String): String {
+    return try {
+        val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
+        val obj = com.google.gson.JsonParser.parseString(raw)
+        gson.toJson(obj)
+    } catch (_: Exception) {
+        raw
+    }
+}
