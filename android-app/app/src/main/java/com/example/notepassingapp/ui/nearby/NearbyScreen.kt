@@ -26,7 +26,9 @@ fun NearbyScreen(
     val nearbyUsers by viewModel.nearbyUsers.collectAsState()
     val bleState by viewModel.bleState.collectAsState()
     val processingRequestIds by viewModel.processingRequestIds.collectAsState()
+    val processingBlockIds by viewModel.processingBlockIds.collectAsState()
     val context = LocalContext.current
+    var pendingBlockUser by remember { mutableStateOf<com.example.notepassingapp.data.model.NearbyUser?>(null) }
 
     var permissionsGranted by remember {
         mutableStateOf(checkBlePermissions(context))
@@ -100,8 +102,10 @@ fun NearbyScreen(
                     NearbyCard(
                         user = user,
                         isFriendRequestProcessing = user.deviceId in processingRequestIds,
+                        isBlockProcessing = user.deviceId in processingBlockIds,
                         onClick = { onUserClick(user.deviceId) },
-                        onAddFriend = { viewModel.sendFriendRequest(user) }
+                        onAddFriend = { viewModel.sendFriendRequest(user) },
+                        onBlock = { pendingBlockUser = user }
                     )
                 }
                 if (nearbyUsers.isNotEmpty()) {
@@ -120,6 +124,29 @@ fun NearbyScreen(
                 }
             }
         }
+    }
+
+    pendingBlockUser?.let { user ->
+        AlertDialog(
+            onDismissRequest = { pendingBlockUser = null },
+            title = { Text("确认拉黑") },
+            text = { Text("拉黑 ${user.nickname} 后，对方将从附近页隐藏。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.blockUser(user)
+                        pendingBlockUser = null
+                    }
+                ) {
+                    Text("确认拉黑")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { pendingBlockUser = null }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 

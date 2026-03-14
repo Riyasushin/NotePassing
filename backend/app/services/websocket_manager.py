@@ -191,6 +191,17 @@ async def push_friend_response(receiver_id: str, response_data: dict) -> bool:
     )
 
 
+async def push_friend_deleted(receiver_id: str, deleted_data: dict) -> bool:
+    """Push friendship removal notification to the other side."""
+    return await manager.send_personal_message(
+        receiver_id,
+        {
+            "type": "friend_deleted",
+            "payload": deleted_data,
+        }
+    )
+
+
 async def push_boost(receiver_id: str, boost_data: dict) -> bool:
     """Push boost notification to receiver."""
     return await manager.send_personal_message(

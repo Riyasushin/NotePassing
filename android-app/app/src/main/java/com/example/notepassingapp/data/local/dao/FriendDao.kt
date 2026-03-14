@@ -27,6 +27,9 @@ interface FriendDao {
     @Query("SELECT * FROM friends WHERE device_id = :deviceId LIMIT 1")
     fun observeByDeviceId(deviceId: String): Flow<FriendEntity?>
 
+    @Query("SELECT device_id FROM friends")
+    suspend fun getAllDeviceIds(): List<String>
+
     @Query("SELECT EXISTS(SELECT 1 FROM friends WHERE device_id = :deviceId)")
     suspend fun isFriend(deviceId: String): Boolean
 
@@ -35,6 +38,12 @@ interface FriendDao {
 
     @Query("UPDATE friends SET meet_count = meet_count + 1 WHERE device_id = :deviceId")
     suspend fun incrementMeetCount(deviceId: String)
+
+    @Query("DELETE FROM friends")
+    suspend fun deleteAll()
+
+    @Query("DELETE FROM friends WHERE device_id NOT IN (:deviceIds)")
+    suspend fun deleteNotIn(deviceIds: List<String>)
 
     @Query("DELETE FROM friends WHERE device_id = :deviceId")
     suspend fun delete(deviceId: String)

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.message_service import MessageService
 from app.services.device_service import DeviceService
+from app.services.relation_service import RelationService
 from app.schemas.message import SendMessageRequest, MarkReadRequest
 from app.schemas.device import DeviceInitRequest
 from app.utils.uuid_utils import generate_device_id, generate_uuid
@@ -14,6 +15,7 @@ from app.utils.exceptions import (
     DeviceNotInitializedError,
     BlockedByUserError,
     TempChatLimitReachedError,
+    TempSessionExpiredError,
 )
 from app.models.friendship import Friendship
 from app.models.block import Block
@@ -176,6 +178,50 @@ class TestMessageService:
         )
         with pytest.raises(BlockedByUserError):
             await MessageService.send_message(db_session, data)
+
+    @pytest.mark.asyncio
+    async def test_send_message_after_friend_deleted_raises_expired(self, db_session: AsyncSession):
+        """Deleting a friend should immediately invalidate the old permanent session."""
+        device_a = generate_device_id()
+        device_b = generate_device_id()
+
+        await DeviceService.init_device(
+            db_session, DeviceInitRequest(device_id=device_a, nickname="User A")
+        )
+        await DeviceService.init_device(
+            db_session, DeviceInitRequest(device_id=device_b, nickname="User B")
+        )
+
+        friendship = Friendship(
+            request_id=generate_uuid(),
+            sender_id=device_a,
+            receiver_id=device_b,
+            status="accepted",
+        )
+        device_x, device_y = (device_a, device_b) if device_a < device_b else (device_b, device_a)
+        session = Session(
+            session_id=generate_uuid(),
+            device_a_id=device_x,
+            device_b_id=device_y,
+            is_temp=False,
+            status="active",
+        )
+        db_session.add(friendship)
+        db_session.add(session)
+        await db_session.commit()
+
+        await RelationService.delete_friend(db_session, device_a, device_b)
+
+        with pytest.raises(TempSessionExpiredError):
+            await MessageService.send_message(
+                db_session,
+                SendMessageRequest(
+                    sender_id=device_b,
+                    receiver_id=device_a,
+                    content="still there?",
+                    type="common",
+                ),
+            )
     
     @pytest.mark.asyncio
     async def test_send_message_device_not_found(self, db_session: AsyncSession):

@@ -20,6 +20,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,7 +36,9 @@ import java.util.Locale
 @Composable
 fun FriendCard(
     friend: FriendEntity,
-    onClick: () -> Unit
+    isDeleting: Boolean = false,
+    onClick: () -> Unit,
+    onDelete: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
@@ -49,7 +52,6 @@ fun FriendCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(80.dp)
         ) {
             // Boost 高亮条：好友在附近时显示
             if (friend.isNearby) {
@@ -134,6 +136,12 @@ fun FriendCard(
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline
                         )
+                    }
+                    TextButton(
+                        onClick = onDelete,
+                        enabled = !isDeleting
+                    ) {
+                        Text(if (isDeleting) "删除中" else "删除好友")
                     }
                 }
             }

@@ -29,6 +29,7 @@ object WsTypes {
     const val MESSAGE_SENT = "message_sent"
     const val FRIEND_REQUEST = "friend_request"
     const val FRIEND_RESPONSE = "friend_response"
+    const val FRIEND_DELETED = "friend_deleted"
     const val BOOST = "boost"
     const val SESSION_EXPIRED = "session_expired"
     const val MESSAGES_READ = "messages_read"

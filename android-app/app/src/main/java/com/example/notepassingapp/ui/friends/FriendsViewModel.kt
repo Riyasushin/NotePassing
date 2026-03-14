@@ -24,6 +24,8 @@ class FriendsViewModel : ViewModel() {
 
     private val _processingRequestIds = MutableStateFlow<Set<String>>(emptySet())
     val processingRequestIds: StateFlow<Set<String>> = _processingRequestIds.asStateFlow()
+    private val _deletingFriendIds = MutableStateFlow<Set<String>>(emptySet())
+    val deletingFriendIds: StateFlow<Set<String>> = _deletingFriendIds.asStateFlow()
 
     /**
      * 好友列表，按 last_chat_at 排序（DAO 中已定义）。
@@ -66,6 +68,20 @@ class FriendsViewModel : ViewModel() {
         handleFriendRequestAction(requestId, accept = false)
     }
 
+    fun deleteFriend(friendDeviceId: String) {
+        if (friendDeviceId in _deletingFriendIds.value) return
+
+        viewModelScope.launch {
+            _deletingFriendIds.update { it + friendDeviceId }
+            try {
+                RelationRepository.deleteFriend(friendDeviceId)
+                RelationRepository.syncFriends()
+            } finally {
+                _deletingFriendIds.update { it - friendDeviceId }
+            }
+        }
+    }
+
     private fun handleFriendRequestAction(requestId: String, accept: Boolean) {
         if (requestId in _processingRequestIds.value) return
 
@@ -84,6 +100,7 @@ class FriendsViewModel : ViewModel() {
     private fun startPendingRequestPolling() {
         viewModelScope.launch {
             while (isActive) {
+                RelationRepository.syncFriends()
                 RelationRepository.syncIncomingFriendRequests()
                 delay(3000)
             }

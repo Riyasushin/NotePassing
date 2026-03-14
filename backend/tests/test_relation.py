@@ -281,7 +281,16 @@ class TestRelationService:
             receiver_id=device_b,
             status="accepted",
         )
+        device_x, device_y = (device_a, device_b) if device_a < device_b else (device_b, device_a)
+        session = Session(
+            session_id=generate_uuid(),
+            device_a_id=device_x,
+            device_b_id=device_y,
+            is_temp=False,
+            status="active",
+        )
         db_session.add(friendship)
+        db_session.add(session)
         await db_session.commit()
         
         # Delete friendship
@@ -304,6 +313,14 @@ class TestRelationService:
             )
         )
         assert result.scalar_one_or_none() is None
+
+        session_result = await db_session.execute(
+            select(Session).where(Session.session_id == session.session_id)
+        )
+        updated_session = session_result.scalar_one()
+        assert updated_session.is_temp is True
+        assert updated_session.status == "expired"
+        assert updated_session.expires_at is not None
     
     @pytest.mark.asyncio
     async def test_block_user(self, db_session: AsyncSession):

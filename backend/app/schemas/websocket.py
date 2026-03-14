@@ -59,6 +59,12 @@ class WebSocketFriendResponse(BaseModel):
     payload: dict
 
 
+class WebSocketFriendDeleted(BaseModel):
+    """Friendship removal notification."""
+    type: Literal["friend_deleted"]
+    payload: dict
+
+
 class WebSocketBoost(BaseModel):
     """Boost notification for nearby friend."""
     type: Literal["boost"]

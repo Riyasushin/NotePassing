@@ -25,9 +25,11 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _realtimeStates = MutableStateFlow<Map<String, RealtimeState>>(emptyMap())
     private val _processingRequestIds = MutableStateFlow<Set<String>>(emptySet())
+    private val _processingBlockIds = MutableStateFlow<Set<String>>(emptySet())
 
     val bleState = BleManager.state
     val processingRequestIds: StateFlow<Set<String>> = _processingRequestIds.asStateFlow()
+    val processingBlockIds: StateFlow<Set<String>> = _processingBlockIds.asStateFlow()
 
     data class RealtimeState(
         val state: NearbyState = NearbyState.ACTIVE,
@@ -191,6 +193,22 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
                 }
             } finally {
                 _processingRequestIds.update { it - user.deviceId }
+            }
+        }
+    }
+
+    fun blockUser(user: NearbyUser) {
+        if (user.deviceId in _processingBlockIds.value) return
+
+        viewModelScope.launch {
+            _processingBlockIds.update { it + user.deviceId }
+            try {
+                val success = RelationRepository.blockUser(user.deviceId)
+                if (!success) {
+                    Log.e("NearbyViewModel", "Failed to block user ${user.deviceId}")
+                }
+            } finally {
+                _processingBlockIds.update { it - user.deviceId }
             }
         }
     }

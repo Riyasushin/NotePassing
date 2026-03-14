@@ -17,15 +17,20 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.notepassingapp.data.local.entity.FriendEntity
 import com.example.notepassingapp.data.local.entity.FriendRequestEntity
 
 @Composable
@@ -36,6 +41,8 @@ fun FriendsScreen(
     val friends by viewModel.friends.collectAsState()
     val incomingRequests by viewModel.incomingRequests.collectAsState()
     val processingRequestIds by viewModel.processingRequestIds.collectAsState()
+    val deletingFriendIds by viewModel.deletingFriendIds.collectAsState()
+    var pendingDeleteFriend by remember { mutableStateOf<FriendEntity?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.refreshIncomingRequests()
@@ -118,7 +125,9 @@ fun FriendsScreen(
                 ) { friend ->
                     FriendCard(
                         friend = friend,
-                        onClick = { onFriendClick(friend.deviceId) }
+                        isDeleting = friend.deviceId in deletingFriendIds,
+                        onClick = { onFriendClick(friend.deviceId) },
+                        onDelete = { pendingDeleteFriend = friend }
                     )
                 }
                 if (friends.isNotEmpty()) {
@@ -130,6 +139,29 @@ fun FriendsScreen(
                 }
             }
         }
+    }
+
+    pendingDeleteFriend?.let { friend ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteFriend = null },
+            title = { Text("确认删除好友") },
+            text = { Text("删除 ${friend.nickname} 后，对方将从好友列表移除。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteFriend(friend.deviceId)
+                        pendingDeleteFriend = null
+                    }
+                ) {
+                    Text("确认删除")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { pendingDeleteFriend = null }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 

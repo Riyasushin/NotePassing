@@ -41,8 +41,10 @@ import kotlinx.coroutines.delay
 fun NearbyCard(
     user: NearbyUser,
     isFriendRequestProcessing: Boolean = false,
+    isBlockProcessing: Boolean = false,
     onClick: () -> Unit,
-    onAddFriend: () -> Unit = {}
+    onAddFriend: () -> Unit = {},
+    onBlock: () -> Unit = {}
 ) {
     val isGrace = user.state == NearbyState.GRACE
     val contentAlpha = if (isGrace) 0.5f else 1f
@@ -177,12 +179,21 @@ fun NearbyCard(
                 }
 
                 if (!user.isFriend) {
-                    TextButton(
-                        onClick = onAddFriend,
-                        enabled = !isFriendRequestProcessing && user.friendRequestState == FriendRequestState.NONE,
-                        modifier = Modifier.padding(top = 4.dp)
-                    ) {
-                        Text(friendActionLabel(user.friendRequestState, isFriendRequestProcessing))
+                    Column(horizontalAlignment = Alignment.End) {
+                        TextButton(
+                            onClick = onAddFriend,
+                            enabled = !isFriendRequestProcessing && user.friendRequestState == FriendRequestState.NONE,
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            Text(friendActionLabel(user.friendRequestState, isFriendRequestProcessing))
+                        }
+
+                        TextButton(
+                            onClick = onBlock,
+                            enabled = !isBlockProcessing
+                        ) {
+                            Text(if (isBlockProcessing) "拉黑中" else "拉黑")
+                        }
                     }
                 }
             }

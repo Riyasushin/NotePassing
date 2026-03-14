@@ -32,6 +32,7 @@ async def websocket_endpoint(
         - message_sent: Message sent confirmation
         - friend_request: Friend request received
         - friend_response: Friend request response
+        - friend_deleted: Friendship removed by the other side
         - messages_read: Messages marked as read
         - error: Error notification
     """

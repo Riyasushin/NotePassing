@@ -8,6 +8,7 @@ import com.example.notepassingapp.data.local.entity.FriendRequestDirection
 import com.example.notepassingapp.data.local.entity.FriendRequestEntity
 import com.example.notepassingapp.data.remote.ApiClient
 import com.example.notepassingapp.data.remote.dto.*
+import com.example.notepassingapp.data.remote.ws.WsFriendDeletedPayload
 import com.example.notepassingapp.data.remote.ws.WsFriendRequestPayload
 import com.example.notepassingapp.data.remote.ws.WsFriendResponsePayload
 import com.example.notepassingapp.util.DeviceManager
@@ -30,6 +31,9 @@ object RelationRepository {
         return try {
             val response = ApiClient.relationApi.getFriendsList(DeviceManager.getDeviceId())
             if (response.isSuccess && response.data != null) {
+                val localIds = friendDao.getAllDeviceIds().toSet()
+                val serverIds = response.data.friends.map { it.deviceId }.toSet()
+
                 response.data.friends.forEach { dto ->
                     val existing = friendDao.getByDeviceId(dto.deviceId)
                     val entity = FriendEntity(
@@ -47,6 +51,18 @@ object RelationRepository {
                     )
                     friendDao.insertOrReplace(entity)
                 }
+
+                val removedIds = localIds - serverIds
+                if (serverIds.isEmpty()) {
+                    friendDao.deleteAll()
+                } else {
+                    friendDao.deleteNotIn(serverIds.toList())
+                }
+                removedIds.forEach { deviceId ->
+                    friendRequestDao.deleteByPeerDeviceId(deviceId)
+                    markChatHistoryAsStranger(deviceId, setSessionExpired = true)
+                }
+
                 Log.d(TAG, "Synced ${response.data.friends.size} friends")
                 true
             } else {
@@ -150,6 +166,24 @@ object RelationRepository {
         }
     }
 
+    suspend fun deleteFriend(friendDeviceId: String): Boolean {
+        return try {
+            val response = ApiClient.relationApi.deleteFriend(
+                friendDeviceId,
+                DeviceManager.getDeviceId()
+            )
+            if (response.isSuccess) {
+                friendDao.delete(friendDeviceId)
+                friendRequestDao.deleteByPeerDeviceId(friendDeviceId)
+                markChatHistoryAsStranger(friendDeviceId, setSessionExpired = true)
+            }
+            response.isSuccess
+        } catch (e: Exception) {
+            Log.e(TAG, "Delete friend error", e)
+            false
+        }
+    }
+
     suspend fun blockUser(targetId: String): Boolean {
         return try {
             val request = BlockRequest(
@@ -160,6 +194,8 @@ object RelationRepository {
             if (response.isSuccess) {
                 blockDao.insert(BlockEntity(deviceId = targetId))
                 friendDao.delete(targetId)
+                friendRequestDao.deleteByPeerDeviceId(targetId)
+                markChatHistoryAsStranger(targetId)
             }
             response.isSuccess
         } catch (e: Exception) {
@@ -213,6 +249,12 @@ object RelationRepository {
         syncFriends()
     }
 
+    suspend fun handleFriendDeleted(payload: WsFriendDeletedPayload) {
+        friendDao.delete(payload.peerDeviceId)
+        friendRequestDao.deleteByPeerDeviceId(payload.peerDeviceId)
+        markChatHistoryAsStranger(payload.peerDeviceId, setSessionExpired = true)
+    }
+
     private suspend fun upsertFriend(
         deviceId: String,
         nickname: String,
@@ -246,6 +288,19 @@ object RelationRepository {
                 isFriend = true,
                 sessionId = sessionId ?: history.sessionId,
                 isSessionExpired = false
+            )
+        )
+    }
+
+    private suspend fun markChatHistoryAsStranger(
+        deviceId: String,
+        setSessionExpired: Boolean = false,
+    ) {
+        val history = chatHistoryDao.getByDeviceId(deviceId) ?: return
+        chatHistoryDao.insertOrReplace(
+            history.copy(
+                isFriend = false,
+                isSessionExpired = setSessionExpired
             )
         )
     }

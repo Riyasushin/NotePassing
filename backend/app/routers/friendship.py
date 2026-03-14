@@ -85,7 +85,8 @@ async def delete_friend(
     Delete a friendship.
     
     - Removes the friendship record
-    - Session may be downgraded to temporary
+    - Expires the current pair session immediately
+    - Pushes a friend_deleted event to the other side when connected
     """
     await RelationService.delete_friend(db, device_id, friend_device_id)
     return success_response(data=None)

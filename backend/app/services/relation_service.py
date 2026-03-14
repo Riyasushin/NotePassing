@@ -21,7 +21,11 @@ from app.schemas.friendship import (
     FriendResponseResponse,
 )
 from app.schemas.block import BlockRequest
-from app.services.websocket_manager import push_friend_request, push_friend_response
+from app.services.websocket_manager import (
+    push_friend_request,
+    push_friend_response,
+    push_friend_deleted,
+)
 from app.utils.validators import validate_device_id
 from app.utils.exceptions import (
     DeviceNotInitializedError,
@@ -412,6 +416,16 @@ class RelationService:
         
         if result.rowcount == 0:
             raise FriendshipNotExistError()
+
+        await RelationService._expire_pair_session(db, device_id, friend_device_id)
+        await db.flush()
+
+        await push_friend_deleted(
+            friend_device_id,
+            {
+                "peer_device_id": device_id,
+            },
+        )
     
     @staticmethod
     async def block_user(
@@ -461,8 +475,17 @@ class RelationService:
                 ),
             )
         )
+
+        await RelationService._expire_pair_session(db, data.device_id, data.target_id)
         
         await db.flush()
+
+        await push_friend_deleted(
+            data.target_id,
+            {
+                "peer_device_id": data.device_id,
+            },
+        )
     
     @staticmethod
     async def unblock_user(
@@ -490,6 +513,32 @@ class RelationService:
         
         if result.rowcount == 0:
             raise FriendshipNotExistError()  # Or a more specific error
+
+    @staticmethod
+    async def _expire_pair_session(
+        db: AsyncSession,
+        device_a: str,
+        device_b: str,
+    ) -> None:
+        """Expire the current pair session so friendship removal takes effect immediately."""
+        if device_a > device_b:
+            device_a, device_b = device_b, device_a
+
+        result = await db.execute(
+            select(Session).where(
+                Session.device_a_id == device_a,
+                Session.device_b_id == device_b,
+                Session.status == "active",
+            )
+        )
+        session = result.scalar_one_or_none()
+
+        if not session:
+            return
+
+        session.is_temp = True
+        session.status = "expired"
+        session.expires_at = datetime.utcnow()
     
     @staticmethod
     async def _get_or_create_permanent_session(
@@ -516,6 +565,7 @@ class RelationService:
             if session.is_temp:
                 session.is_temp = False
                 session.expires_at = None
+            session.status = "active"
             return session
         
         # Create new permanent session

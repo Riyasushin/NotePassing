@@ -133,6 +133,7 @@ Connect to `/api/v1/ws?device_id={device_id}`
 - `message_sent` - Message delivery confirmation
 - `friend_request` - New friend request
 - `friend_response` - Friend request response
+- `friend_deleted` - Friendship removed by the other side
 - `boost` - Friend came nearby
 - `session_expired` - Temporary session ended
 - `messages_read` - Messages marked as read

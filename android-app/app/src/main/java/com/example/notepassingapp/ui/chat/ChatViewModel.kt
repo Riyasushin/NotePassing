@@ -109,6 +109,8 @@ class ChatViewModel(
      */
     private fun syncOnEntry() {
         viewModelScope.launch {
+            RelationRepository.syncFriends()
+
             // 需要先知道 sessionId —— 从已有消息中获取
             val existingMessages = messages.value
             val sessionId = existingMessages.firstOrNull { it.sessionId != "pending" }?.sessionId

@@ -57,6 +57,10 @@ data class WsFriendResponsePayload(
     @SerializedName("session_id") val sessionId: String?
 )
 
+data class WsFriendDeletedPayload(
+    @SerializedName("peer_device_id") val peerDeviceId: String
+)
+
 data class WsFriendBrief(
     @SerializedName("device_id") val deviceId: String,
     @SerializedName("nickname") val nickname: String
