@@ -16,14 +16,16 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.notepassingapp.ui.friends.FriendsScreen
 import com.example.notepassingapp.ui.nearby.NearbyScreen
+import com.example.notepassingapp.ui.onboarding.OnboardingScreen
 import com.example.notepassingapp.ui.settings.SettingsScreen
+import com.example.notepassingapp.util.DeviceManager
+
+private const val ROUTE_ONBOARDING = "onboarding"
 
 /**
- * App 的主骨架：Scaffold（脚手架）包含底部导航栏 + 页面内容区。
- *
- * - NavController：导航控制器，记录当前在哪个页面、管理页面栈
- * - NavHost：根据当前路由渲染对应的 Screen
- * - NavigationBar：Material3 底部导航栏
+ * App 的主导航骨架。
+ * 启动时根据 isInitialized 决定显示引导页还是主页。
+ * 引导页完成后跳转到主页，并清除引导页栈（不允许返回引导页）。
  */
 @Composable
 fun MainNavHost() {
@@ -31,37 +33,53 @@ fun MainNavHost() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
+    val startDestination = if (DeviceManager.isInitialized()) {
+        BottomNavItem.Nearby.route
+    } else {
+        ROUTE_ONBOARDING
+    }
+
+    val showBottomBar = currentRoute in BottomNavItem.entries.map { it.route }
+
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                BottomNavItem.entries.forEach { item ->
-                    NavigationBarItem(
-                        selected = currentRoute == item.route,
-                        onClick = {
-                            navController.navigate(item.route) {
-                                // popUpTo: 点击 Tab 时不会无限叠加页面栈
-                                // 而是回到起始页，再切换到目标页
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+            if (showBottomBar) {
+                NavigationBar {
+                    BottomNavItem.entries.forEach { item ->
+                        NavigationBarItem(
+                            selected = currentRoute == item.route,
+                            onClick = {
+                                navController.navigate(item.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true  // 不重复创建同一页面
-                                restoreState = true     // 恢复之前的滚动位置等状态
-                            }
-                        },
-                        icon = { Icon(item.icon, contentDescription = item.label) },
-                        label = { Text(item.label) }
-                    )
+                            },
+                            icon = { Icon(item.icon, contentDescription = item.label) },
+                            label = { Text(item.label) }
+                        )
+                    }
                 }
             }
         }
     ) { innerPadding ->
-        // NavHost：页面容器，根据路由显示对应 Screen
-        // startDestination 决定 App 打开后默认显示哪个页面
         NavHost(
             navController = navController,
-            startDestination = BottomNavItem.Nearby.route,
+            startDestination = startDestination,
             modifier = Modifier.padding(innerPadding)
         ) {
+            composable(ROUTE_ONBOARDING) {
+                OnboardingScreen(
+                    onComplete = {
+                        // 跳转到附近页，同时把引导页从栈里清掉
+                        navController.navigate(BottomNavItem.Nearby.route) {
+                            popUpTo(ROUTE_ONBOARDING) { inclusive = true }
+                        }
+                    }
+                )
+            }
             composable(BottomNavItem.Nearby.route) { NearbyScreen() }
             composable(BottomNavItem.Friends.route) { FriendsScreen() }
             composable(BottomNavItem.Settings.route) { SettingsScreen() }
