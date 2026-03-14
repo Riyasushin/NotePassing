@@ -9,11 +9,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.example.notepassingapp.ui.chat.ChatScreen
+import com.example.notepassingapp.ui.chat.ChatViewModel
 import com.example.notepassingapp.ui.friends.FriendsScreen
 import com.example.notepassingapp.ui.nearby.NearbyScreen
 import com.example.notepassingapp.ui.onboarding.OnboardingScreen
@@ -21,12 +26,10 @@ import com.example.notepassingapp.ui.settings.SettingsScreen
 import com.example.notepassingapp.util.DeviceManager
 
 private const val ROUTE_ONBOARDING = "onboarding"
+private const val ROUTE_CHAT = "chat/{peerDeviceId}"
 
-/**
- * App 的主导航骨架。
- * 启动时根据 isInitialized 决定显示引导页还是主页。
- * 引导页完成后跳转到主页，并清除引导页栈（不允许返回引导页）。
- */
+fun chatRoute(peerDeviceId: String) = "chat/$peerDeviceId"
+
 @Composable
 fun MainNavHost() {
     val navController = rememberNavController()
@@ -39,6 +42,7 @@ fun MainNavHost() {
         ROUTE_ONBOARDING
     }
 
+    // 底部栏只在三个主页面显示，聊天页和引导页不显示
     val showBottomBar = currentRoute in BottomNavItem.entries.map { it.route }
 
     Scaffold(
@@ -73,16 +77,48 @@ fun MainNavHost() {
             composable(ROUTE_ONBOARDING) {
                 OnboardingScreen(
                     onComplete = {
-                        // 跳转到附近页，同时把引导页从栈里清掉
                         navController.navigate(BottomNavItem.Nearby.route) {
                             popUpTo(ROUTE_ONBOARDING) { inclusive = true }
                         }
                     }
                 )
             }
-            composable(BottomNavItem.Nearby.route) { NearbyScreen() }
-            composable(BottomNavItem.Friends.route) { FriendsScreen() }
-            composable(BottomNavItem.Settings.route) { SettingsScreen() }
+
+            composable(BottomNavItem.Nearby.route) {
+                NearbyScreen(
+                    onUserClick = { deviceId ->
+                        navController.navigate(chatRoute(deviceId))
+                    }
+                )
+            }
+
+            composable(BottomNavItem.Friends.route) {
+                FriendsScreen(
+                    onFriendClick = { deviceId ->
+                        navController.navigate(chatRoute(deviceId))
+                    }
+                )
+            }
+
+            composable(BottomNavItem.Settings.route) {
+                SettingsScreen()
+            }
+
+            // 聊天页：从路由参数取 peerDeviceId，用 Factory 创建带参数的 ViewModel
+            composable(
+                route = ROUTE_CHAT,
+                arguments = listOf(navArgument("peerDeviceId") { type = NavType.StringType })
+            ) { entry ->
+                val peerDeviceId = entry.arguments?.getString("peerDeviceId") ?: return@composable
+                val chatViewModel: ChatViewModel = viewModel(
+                    factory = ChatViewModel.Factory(peerDeviceId)
+                )
+                ChatScreen(
+                    peerDeviceId = peerDeviceId,
+                    onBack = { navController.popBackStack() },
+                    viewModel = chatViewModel
+                )
+            }
         }
     }
 }
