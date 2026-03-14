@@ -1,6 +1,6 @@
 val serverHost = providers.gradleProperty("NOTEPASSING_SERVER_HOST").orNull
     ?: providers.environmentVariable("NOTEPASSING_SERVER_HOST").orNull
-    ?: "10.70.0.197:8000"
+    ?: "39.105.30.179:8000"
 
 plugins {
     alias(libs.plugins.android.application)

@@ -5,8 +5,12 @@ import android.util.Log
 import com.example.notepassingapp.NotePassingApp
 import com.example.notepassingapp.data.local.entity.ChatHistoryEntity
 import com.example.notepassingapp.data.remote.dto.ScannedDevice
+import com.example.notepassingapp.notifications.TagMatchAlert
+import com.example.notepassingapp.notifications.TagMatchNotifier
 import com.example.notepassingapp.data.repository.PresenceRepository
 import com.example.notepassingapp.data.repository.TempIdRepository
+import com.example.notepassingapp.util.DeviceManager
+import com.example.notepassingapp.util.TagSerializer
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.text.SimpleDateFormat
@@ -28,6 +32,7 @@ object BleManager {
     private var collectJob: Job? = null
 
     private val bleFindMap = Collections.synchronizedMap(mutableMapOf<String, BleFoundDevice>())
+    private val tagMatchSignatures = Collections.synchronizedMap(mutableMapOf<String, String>())
     
     // Track which friends are currently nearby to handle leave events
     private val nearbyFriendIds = Collections.synchronizedSet(mutableSetOf<String>())
@@ -39,6 +44,9 @@ object BleManager {
 
     private val _nearbyUpdate = MutableSharedFlow<NearbyUpdateEvent>(extraBufferCapacity = 8)
     val nearbyUpdate: SharedFlow<NearbyUpdateEvent> = _nearbyUpdate.asSharedFlow()
+
+    private val _tagMatchAlerts = MutableSharedFlow<List<TagMatchAlert>>(extraBufferCapacity = 8)
+    val tagMatchAlerts: SharedFlow<List<TagMatchAlert>> = _tagMatchAlerts.asSharedFlow()
 
     data class State(
         val isAdvertising: Boolean = false,
@@ -58,6 +66,7 @@ object BleManager {
         val deviceId: String,
         val nickname: String,
         val avatar: String?,
+        val tags: List<String>,
         val profile: String,
         val isAnonymous: Boolean,
         val roleName: String?,
@@ -87,6 +96,7 @@ object BleManager {
         advertiser?.stop()
         scanner?.stop()
         bleFindMap.clear()
+        tagMatchSignatures.clear()
         nearbyFriendIds.clear()
         _state.value = State()
         Log.d(TAG, "BleManager stopped")
@@ -151,6 +161,7 @@ object BleManager {
     private suspend fun resolveAndUpdate() {
         val snapshot = synchronized(bleFindMap) { bleFindMap.values.toList() }
         if (snapshot.isEmpty()) {
+            tagMatchSignatures.clear()
             val leftFriends = checkForLeftFriends(emptySet())
             _nearbyUpdate.tryEmit(NearbyUpdateEvent(emptyList(), emptyList(), leftFriends))
             Log.d(TAG, "Resolved 0 devices, 0 boosts, ${leftFriends.size} friends left")
@@ -174,12 +185,17 @@ object BleManager {
                     deviceId = dto.deviceId,
                     nickname = dto.nickname,
                     avatar = dto.avatar,
+                    tags = TagSerializer.encode(dto.tags),
                     profile = dto.profile,
                     isAnonymous = dto.isAnonymous,
                     roleName = dto.roleName,
                     isFriend = dto.isFriend,
+                    sessionId = existing?.sessionId,
+                    lastMessage = existing?.lastMessage,
+                    lastMessageAt = existing?.lastMessageAt,
                     lastSeenAt = now,
-                    firstSeenAt = existing?.firstSeenAt ?: now
+                    firstSeenAt = existing?.firstSeenAt ?: now,
+                    isSessionExpired = existing?.isSessionExpired ?: false,
                 )
             )
             
@@ -194,6 +210,7 @@ object BleManager {
                 deviceId = dto.deviceId,
                 nickname = dto.nickname,
                 avatar = dto.avatar,
+                tags = dto.tags,
                 profile = dto.profile,
                 isAnonymous = dto.isAnonymous,
                 roleName = dto.roleName,
@@ -212,6 +229,8 @@ object BleManager {
                 Log.d(TAG, "Friend left range: $friendId")
             }
         }
+
+        handleTagMatchAlerts(resolved)
 
         val boostIds = result.boostAlerts.map { it.deviceId }
         _nearbyUpdate.tryEmit(NearbyUpdateEvent(resolved, boostIds, leftFriends))
@@ -247,6 +266,49 @@ object BleManager {
             val leftFriends = nearbyFriendIds.filter { it !in currentNearbyIds }
             nearbyFriendIds.removeAll(leftFriends.toSet())
             return leftFriends
+        }
+    }
+
+    private fun handleTagMatchAlerts(resolved: List<ResolvedDevice>) {
+        val myTags = DeviceManager.getTags()
+        if (myTags.isEmpty()) {
+            tagMatchSignatures.clear()
+            return
+        }
+
+        val activeAlerts = resolved.mapNotNull { device ->
+            val commonTags = TagSerializer.findCommonTags(myTags, device.tags)
+            if (commonTags.isEmpty()) {
+                null
+            } else {
+                TagMatchAlert(
+                    deviceId = device.deviceId,
+                    nickname = device.nickname,
+                    commonTags = commonTags,
+                )
+            }
+        }
+
+        val activeSignatures = activeAlerts.associate { alert ->
+            alert.deviceId to alert.commonTags.joinToString("|") { it.lowercase() }
+        }
+
+        synchronized(tagMatchSignatures) {
+            val staleIds = tagMatchSignatures.keys.toSet() - activeSignatures.keys
+            staleIds.forEach(tagMatchSignatures::remove)
+
+            val newAlerts = activeAlerts.filter { alert ->
+                tagMatchSignatures[alert.deviceId] != activeSignatures[alert.deviceId]
+            }
+            if (newAlerts.isEmpty()) return
+
+            newAlerts.forEach { alert ->
+                tagMatchSignatures[alert.deviceId] = activeSignatures.getValue(alert.deviceId)
+            }
+
+            TagMatchNotifier.notify(NotePassingApp.instance, newAlerts)
+            _tagMatchAlerts.tryEmit(newAlerts)
+            Log.d(TAG, "Tag match alerts: ${newAlerts.size}")
         }
     }
 

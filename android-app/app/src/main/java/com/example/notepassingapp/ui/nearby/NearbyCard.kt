@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.example.notepassingapp.data.model.FriendRequestState
 import com.example.notepassingapp.data.model.NearbyState
 import com.example.notepassingapp.data.model.NearbyUser
+import com.example.notepassingapp.ui.components.ProfileTagChips
 import com.example.notepassingapp.ui.components.UserAvatar
 import kotlinx.coroutines.delay
 
@@ -39,6 +40,7 @@ fun NearbyCard(
     isFriendRequestProcessing: Boolean = false,
     isBlockProcessing: Boolean = false,
     onClick: () -> Unit,
+    onAvatarClick: () -> Unit,
     onAddFriend: () -> Unit = {},
     onBlock: () -> Unit = {}
 ) {
@@ -79,6 +81,7 @@ fun NearbyCard(
                 avatarUrl = user.displayAvatar,
                 isFriend = user.isFriend,
                 size = 52.dp,
+                modifier = Modifier.clickable(onClick = onAvatarClick),
                 contentDescription = user.displayNickname,
             )
 
@@ -105,13 +108,11 @@ fun NearbyCard(
                     }
                 }
 
-                if (user.displayProfile.isNotBlank()) {
-                    Text(
-                        text = user.displayProfile,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                if (user.displayTags.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    ProfileTagChips(
+                        tags = user.displayTags,
+                        maxVisible = 3,
                     )
                 }
 
@@ -143,7 +144,7 @@ fun NearbyCard(
                     )
                 } else {
                     Text(
-                        text = "${String.format("%.1f", user.distanceEstimate)}m",
+                        text = "蓝牙强度 ${user.signalStrengthLabel}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )

@@ -29,6 +29,7 @@ object DeviceRepository {
             val request = DeviceInitRequest(
                 deviceId = did,
                 nickname = nick.ifBlank { "用户${did.take(6)}" },
+                tags = DeviceManager.getTags(),
                 profile = DeviceManager.getProfile()
             )
             val response = ApiClient.deviceApi.initDevice(request)
@@ -53,6 +54,7 @@ object DeviceRepository {
             val request = DeviceUpdateRequest(
                 nickname = DeviceManager.getNickname(),
                 avatar = DeviceManager.getAvatar(),
+                tags = DeviceManager.getTags(),
                 profile = DeviceManager.getProfile(),
                 isAnonymous = DeviceManager.isAnonymous(),
                 roleName = DeviceManager.getRoleName()

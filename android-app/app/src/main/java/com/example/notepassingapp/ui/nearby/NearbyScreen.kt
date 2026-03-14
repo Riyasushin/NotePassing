@@ -17,6 +17,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notepassingapp.ble.BleManager
+import com.example.notepassingapp.notifications.TagMatchNotifier
+import com.example.notepassingapp.ui.components.ProfileDetailDialog
+import com.example.notepassingapp.ui.components.ProfilePreviewData
 
 @Composable
 fun NearbyScreen(
@@ -28,7 +31,9 @@ fun NearbyScreen(
     val processingRequestIds by viewModel.processingRequestIds.collectAsState()
     val processingBlockIds by viewModel.processingBlockIds.collectAsState()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
     var pendingBlockUser by remember { mutableStateOf<com.example.notepassingapp.data.model.NearbyUser?>(null) }
+    var selectedProfile by remember { mutableStateOf<ProfilePreviewData?>(null) }
 
     var permissionsGranted by remember {
         mutableStateOf(checkBlePermissions(context))
@@ -43,80 +48,98 @@ fun NearbyScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-    ) {
-        Text(
-            text = "附近",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
-        )
-
-        if (bleState.running) {
-            BleStatusBar(bleState)
+    LaunchedEffect(snackbarHostState) {
+        BleManager.tagMatchAlerts.collect { alerts ->
+            snackbarHostState.showSnackbar(TagMatchNotifier.buildMessage(alerts))
         }
+    }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (!permissionsGranted) {
-            PermissionCard(
-                onRequest = { permissionLauncher.launch(blePermissions()) }
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+        ) {
+            Text(
+                text = "附近",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
             )
-        } else if (!bleState.running) {
-            StartBleCard(onStart = { viewModel.startBle() })
-        }
 
-        if (nearbyUsers.isEmpty() && !bleState.running) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "附近暂无用户",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "打开蓝牙，发现身边的人",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    OutlinedButton(onClick = { viewModel.insertTestData() }) {
-                        Text("插入测试数据")
+            if (bleState.running) {
+                BleStatusBar(bleState)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (!permissionsGranted) {
+                PermissionCard(
+                    onRequest = { permissionLauncher.launch(blePermissions()) }
+                )
+            } else if (!bleState.running) {
+                StartBleCard(onStart = { viewModel.startBle() })
+            }
+
+            if (nearbyUsers.isEmpty() && !bleState.running) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "附近暂无用户",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "打开蓝牙，发现身边的人",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        OutlinedButton(onClick = { viewModel.insertTestData() }) {
+                            Text("插入测试数据")
+                        }
                     }
                 }
-            }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(
-                    items = nearbyUsers,
-                    key = { it.deviceId }
-                ) { user ->
-                    NearbyCard(
-                        user = user,
-                        isFriendRequestProcessing = user.deviceId in processingRequestIds,
-                        isBlockProcessing = user.deviceId in processingBlockIds,
-                        onClick = { onUserClick(user.deviceId) },
-                        onAddFriend = { viewModel.sendFriendRequest(user) },
-                        onBlock = { pendingBlockUser = user }
-                    )
-                }
-                if (nearbyUsers.isNotEmpty()) {
-                    item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { viewModel.clearTestData() }) {
-                                Text("清除测试数据")
-                            }
-                            if (bleState.running) {
-                                OutlinedButton(onClick = { viewModel.stopBle() }) {
-                                    Text("停止 BLE")
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(
+                        items = nearbyUsers,
+                        key = { it.deviceId }
+                    ) { user ->
+                        NearbyCard(
+                            user = user,
+                            isFriendRequestProcessing = user.deviceId in processingRequestIds,
+                            isBlockProcessing = user.deviceId in processingBlockIds,
+                            onClick = { onUserClick(user.deviceId) },
+                            onAvatarClick = {
+                                selectedProfile = ProfilePreviewData(
+                                    avatarUrl = user.displayAvatar,
+                                    nickname = user.displayNickname,
+                                    profile = user.displayProfile,
+                                    tags = user.displayTags,
+                                    isFriend = user.isFriend,
+                                    isIdentityHidden = user.isIdentityHidden,
+                                )
+                            },
+                            onAddFriend = { viewModel.sendFriendRequest(user) },
+                            onBlock = { pendingBlockUser = user }
+                        )
+                    }
+                    if (nearbyUsers.isNotEmpty()) {
+                        item {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { viewModel.clearTestData() }) {
+                                    Text("清除测试数据")
+                                }
+                                if (bleState.running) {
+                                    OutlinedButton(onClick = { viewModel.stopBle() }) {
+                                        Text("停止 BLE")
+                                    }
                                 }
                             }
                         }
@@ -124,13 +147,20 @@ fun NearbyScreen(
                 }
             }
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp)
+        )
     }
 
     pendingBlockUser?.let { user ->
         AlertDialog(
             onDismissRequest = { pendingBlockUser = null },
             title = { Text("确认拉黑") },
-            text = { Text("拉黑 ${user.nickname} 后，对方将从附近页隐藏。") },
+            text = { Text("拉黑 ${user.displayNickname} 后，对方将从附近页隐藏。") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -146,6 +176,13 @@ fun NearbyScreen(
                     Text("取消")
                 }
             }
+        )
+    }
+
+    selectedProfile?.let { preview ->
+        ProfileDetailDialog(
+            preview = preview,
+            onDismiss = { selectedProfile = null },
         )
     }
 }

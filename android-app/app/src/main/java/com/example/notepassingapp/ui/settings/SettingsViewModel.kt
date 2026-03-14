@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.notepassingapp.data.repository.DeviceRepository
 import com.example.notepassingapp.util.DeviceManager
+import com.example.notepassingapp.util.TagSerializer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,13 +16,17 @@ data class SettingsUiState(
     val deviceId: String = "",
     val nickname: String = "",
     val avatar: String = "",
+    val tagsInput: String = "",
     val profile: String = "",
     val isAnonymous: Boolean = false,
     val roleName: String = "",
     val isSyncing: Boolean = false,
     val isUploadingAvatar: Boolean = false,
     val transientMessage: String? = null,
-)
+) {
+    val tags: List<String>
+        get() = TagSerializer.fromInput(tagsInput)
+}
 
 class SettingsViewModel : ViewModel() {
 
@@ -37,6 +42,7 @@ class SettingsViewModel : ViewModel() {
             deviceId = DeviceManager.getDeviceId(),
             nickname = DeviceManager.getNickname(),
             avatar = DeviceManager.getAvatar().orEmpty(),
+            tagsInput = TagSerializer.toInput(DeviceManager.getTags()),
             profile = DeviceManager.getProfile(),
             isAnonymous = DeviceManager.isAnonymous(),
             roleName = DeviceManager.getRoleName() ?: ""
@@ -49,6 +55,10 @@ class SettingsViewModel : ViewModel() {
 
     fun updateProfile(value: String) {
         _uiState.value = _uiState.value.copy(profile = value)
+    }
+
+    fun updateTagsInput(value: String) {
+        _uiState.value = _uiState.value.copy(tagsInput = TagSerializer.normalizeInput(value))
     }
 
     fun updateAvatar(value: String) {
@@ -95,11 +105,14 @@ class SettingsViewModel : ViewModel() {
     /** 保存到本地 + 异步同步到服务器 */
     fun save() {
         val state = _uiState.value
+        val normalizedTagsInput = TagSerializer.toInput(state.tags)
         DeviceManager.setNickname(state.nickname)
         DeviceManager.setAvatar(state.avatar.ifBlank { null })
+        DeviceManager.setTags(state.tags)
         DeviceManager.setProfile(state.profile)
         DeviceManager.setAnonymous(state.isAnonymous)
         DeviceManager.setRoleName(state.roleName.ifBlank { null })
+        _uiState.value = state.copy(tagsInput = normalizedTagsInput)
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSyncing = true)
@@ -112,11 +125,14 @@ class SettingsViewModel : ViewModel() {
     /** 首次引导完成：保存并标记已初始化 */
     fun completeOnboarding() {
         val state = _uiState.value
+        val normalizedTagsInput = TagSerializer.toInput(state.tags)
         DeviceManager.setNickname(state.nickname)
         DeviceManager.setAvatar(state.avatar.ifBlank { null })
+        DeviceManager.setTags(state.tags)
         DeviceManager.setProfile(state.profile)
         DeviceManager.setAnonymous(state.isAnonymous)
         DeviceManager.setRoleName(state.roleName.ifBlank { null })
         DeviceManager.setInitialized(true)
+        _uiState.value = state.copy(tagsInput = normalizedTagsInput)
     }
 }

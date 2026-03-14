@@ -8,6 +8,7 @@ data class NearbyUser(
     val deviceId: String,
     val nickname: String,
     val avatar: String? = null,
+    val tags: List<String> = emptyList(),
     val profile: String = "",
     val isAnonymous: Boolean = false,
     val roleName: String? = null,
@@ -32,8 +33,18 @@ data class NearbyUser(
     val displayAvatar: String?
         get() = visibleAvatar(avatar, isAnonymous, isFriend)
 
+    val displayTags: List<String>
+        get() = visibleTags(tags, isAnonymous, isFriend)
+
     val displayProfile: String
-        get() = if (isIdentityHidden) "" else profile
+        get() = visibleProfile(profile, isAnonymous, isFriend)
+
+    val signalStrengthLabel: String
+        get() = when {
+            rssi >= -60 -> "强"
+            rssi >= -75 -> "中"
+            else -> "弱"
+        }
 
     val displayLastMessage: String?
         get() = if (isIdentityHidden) null else lastMessage

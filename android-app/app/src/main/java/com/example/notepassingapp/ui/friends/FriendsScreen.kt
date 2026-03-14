@@ -32,6 +32,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notepassingapp.data.local.entity.FriendEntity
 import com.example.notepassingapp.data.local.entity.FriendRequestEntity
+import com.example.notepassingapp.ui.components.ProfileDetailDialog
+import com.example.notepassingapp.ui.components.ProfilePreviewData
+import com.example.notepassingapp.util.TagSerializer
 
 @Composable
 fun FriendsScreen(
@@ -43,6 +46,7 @@ fun FriendsScreen(
     val processingRequestIds by viewModel.processingRequestIds.collectAsState()
     val deletingFriendIds by viewModel.deletingFriendIds.collectAsState()
     var pendingDeleteFriend by remember { mutableStateOf<FriendEntity?>(null) }
+    var selectedProfile by remember { mutableStateOf<ProfilePreviewData?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.refreshIncomingRequests()
@@ -127,6 +131,15 @@ fun FriendsScreen(
                         friend = friend,
                         isDeleting = friend.deviceId in deletingFriendIds,
                         onClick = { onFriendClick(friend.deviceId) },
+                        onAvatarClick = {
+                            selectedProfile = ProfilePreviewData(
+                                avatarUrl = friend.avatar,
+                                nickname = friend.nickname,
+                                profile = friend.profile,
+                                tags = TagSerializer.decode(friend.tags),
+                                isFriend = true,
+                            )
+                        },
                         onDelete = { pendingDeleteFriend = friend }
                     )
                 }
@@ -161,6 +174,13 @@ fun FriendsScreen(
                     Text("取消")
                 }
             }
+        )
+    }
+
+    selectedProfile?.let { preview ->
+        ProfileDetailDialog(
+            preview = preview,
+            onDismiss = { selectedProfile = null },
         )
     }
 }

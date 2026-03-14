@@ -251,7 +251,7 @@ POST /api/v1/device/{device_id}/avatar
     "code": 0,
     "message": "ok",
     "data": {
-        "avatar_url": "http://10.70.0.197:8000/uploads/avatars/550e8400_avatar.jpg",
+        "avatar_url": "http://39.105.30.179:8000/uploads/avatars/550e8400_avatar.jpg",
         "updated_at": "2026-03-15T10:30:00Z"
     }
 }

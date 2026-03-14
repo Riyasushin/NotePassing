@@ -13,6 +13,7 @@ import com.example.notepassingapp.data.model.FriendRequestState
 import com.example.notepassingapp.data.model.NearbyState
 import com.example.notepassingapp.data.model.NearbyUser
 import com.example.notepassingapp.data.repository.RelationRepository
+import com.example.notepassingapp.util.TagSerializer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.isActive
@@ -244,6 +245,7 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
             deviceId = deviceId,
             nickname = nickname,
             avatar = avatar,
+            tags = TagSerializer.decode(tags),
             profile = profile,
             isAnonymous = isAnonymous,
             roleName = roleName,
@@ -278,6 +280,7 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
                 ChatHistoryEntity(
                     deviceId = "nearby-001",
                     nickname = "小红",
+                    tags = TagSerializer.encode(listOf("摄影", "咖啡")),
                     profile = "喜欢画画",
                     isFriend = true,
                     lastSeenAt = now,
@@ -288,6 +291,7 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
                 ChatHistoryEntity(
                     deviceId = "nearby-002",
                     nickname = "路人甲",
+                    tags = TagSerializer.encode(listOf("徒步", "摄影")),
                     profile = "路过的旅行者",
                     isFriend = false,
                     lastSeenAt = now,
@@ -296,6 +300,7 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
                 ChatHistoryEntity(
                     deviceId = "nearby-003",
                     nickname = "老王",
+                    tags = TagSerializer.encode(listOf("编程", "桌游")),
                     profile = "隔壁的程序员",
                     isFriend = true,
                     lastSeenAt = now - 30_000,
@@ -306,6 +311,7 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
                 ChatHistoryEntity(
                     deviceId = "nearby-004",
                     nickname = "神秘人",
+                    tags = TagSerializer.encode(listOf("夜跑")),
                     profile = "",
                     isAnonymous = true,
                     roleName = "夜行者",

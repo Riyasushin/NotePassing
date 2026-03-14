@@ -34,6 +34,7 @@ fun FriendCard(
     friend: FriendEntity,
     isDeleting: Boolean = false,
     onClick: () -> Unit,
+    onAvatarClick: () -> Unit,
     onDelete: () -> Unit = {}
 ) {
     Card(
@@ -72,6 +73,7 @@ fun FriendCard(
                     avatarUrl = friend.avatar,
                     isFriend = true,
                     size = 48.dp,
+                    modifier = Modifier.clickable(onClick = onAvatarClick),
                     contentDescription = friend.nickname,
                 )
 

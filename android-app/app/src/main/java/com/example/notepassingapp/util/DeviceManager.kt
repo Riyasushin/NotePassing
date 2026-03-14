@@ -18,6 +18,7 @@ object DeviceManager {
     private const val KEY_NICKNAME = "nickname"
     private const val KEY_PROFILE = "profile"
     private const val KEY_AVATAR = "avatar"
+    private const val KEY_TAGS = "tags"
     private const val KEY_IS_ANONYMOUS = "is_anonymous"
     private const val KEY_ROLE_NAME = "role_name"
     private const val KEY_INITIALIZED = "initialized"
@@ -53,6 +54,11 @@ object DeviceManager {
 
     fun getAvatar(): String? = prefs.getString(KEY_AVATAR, null)
     fun setAvatar(value: String?) = prefs.edit().putString(KEY_AVATAR, value).apply()
+
+    fun getTags(): List<String> = TagSerializer.decode(prefs.getString(KEY_TAGS, "[]"))
+    fun setTags(value: List<String>) {
+        prefs.edit().putString(KEY_TAGS, TagSerializer.encode(value)).apply()
+    }
 
     fun isAnonymous(): Boolean = prefs.getBoolean(KEY_IS_ANONYMOUS, false)
     fun setAnonymous(value: Boolean) = prefs.edit().putBoolean(KEY_IS_ANONYMOUS, value).apply()

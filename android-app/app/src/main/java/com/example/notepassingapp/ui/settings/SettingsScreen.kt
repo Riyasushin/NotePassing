@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.notepassingapp.ui.components.ProfileTagChips
 import com.example.notepassingapp.ui.components.UserAvatar
 import kotlinx.coroutines.launch
 
@@ -122,6 +123,33 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = state.tagsInput,
+                onValueChange = { settingsViewModel.updateTagsInput(it) },
+                label = { Text("标签") },
+                placeholder = { Text("例如：#摄影 #徒步 #咖啡") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = "输入时会自动补 #，标签之间用空格分隔；例如：#摄影 #徒步。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            if (state.tags.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                ProfileTagChips(
+                    tags = state.tags,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
