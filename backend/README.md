@@ -1,237 +1,272 @@
-# NotePassing Backend
+# NotePassing API
 
-NotePassing API - Anonymous nearby messaging service.
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-009688.svg)](https://fastapi.tiangolo.com)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## Features
+> Anonymous nearby messaging API for ephemeral social interactions via Bluetooth Low Energy (BLE).
 
-- **Device Management**: Device registration, profile management with privacy controls
-- **Temp ID Service**: Temporary BLE broadcast IDs with rotation
-- **Messaging**: Friend and stranger messaging with temporary sessions
-- **Friendship**: Friend requests, acceptance/rejection with 24h cooldown
-- **Blocking**: User blocking with automatic friendship removal
-- **WebSocket**: Real-time message delivery and notifications
+NotePassing is a privacy-first messaging backend that enables users to discover and chat with nearby people without revealing their identity. Users broadcast temporary IDs via BLE, exchange messages when close to each other, and can build connections through a friend system.
 
-## Requirements
+---
 
-- Python >= 3.10
-- [uv](https://github.com/astral-sh/uv) - Python package manager
-- PostgreSQL (optional, SQLite for testing)
+## ✨ Features
 
-## Quick Start
+- **🔒 Anonymous by Design** - Users identified by device IDs with privacy-controlled profiles
+- **📡 BLE-based Discovery** - Scan nearby devices using temporary broadcast IDs
+- **💬 Ephemeral Messaging** - Chat with nearby strangers without adding friends first
+- **👥 Friend System** - Send friend requests to build permanent connections
+- **⚡ Real-time** - WebSocket support for instant message delivery
+- **🛡️ Privacy Controls** - Anonymous mode, blocking, and granular profile visibility
 
-### Development Setup
+---
 
-```bash
-# Clone and navigate
-cd backend
+## 🏗️ Architecture
 
-# Create virtual environment
-uv venv --python python3.10
+### Tech Stack
 
-# Install dependencies
-uv pip install -e ".[dev]"
+| Component | Technology |
+|-----------|------------|
+| Framework | FastAPI (async) |
+| Database | PostgreSQL (production) / SQLite (testing) |
+| ORM | SQLAlchemy 2.0 (async) |
+| Migrations | Alembic |
+| WebSocket | Native FastAPI WebSockets |
+| Deployment | Docker + Docker Compose |
 
-# Run tests
-uv run pytest tests/ -v
+### Data Model
 
-# Start development server
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│  devices    │◄────┤  temp_ids   │     │   blocks    │
+│  (users)    │     │  (BLE IDs)  │     │ (blacklist) │
+└──────┬──────┘     └─────────────┘     └─────────────┘
+       │
+       ├──► friendships (pending/accepted/rejected)
+       │
+       ├──► sessions ──► messages
+       │
+       └──► presences (nearby tracking)
 ```
 
-### Docker Setup
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python 3.10+
+- PostgreSQL 15+ (or use Docker)
+- Docker & Docker Compose (optional)
+
+### Option 1: Docker Compose (Recommended)
 
 ```bash
-# Start with docker-compose
+# Clone and start
+git clone <repo-url>
+cd notepassing-backend
+cp .env.example .env
+# Edit .env if needed
+
 docker-compose up -d
 
-# View logs
-docker-compose logs -f backend
-
-# Run migrations (if needed)
-docker-compose exec backend alembic upgrade head
+# API available at http://localhost:8000
+# Docs available at http://localhost:8000/docs
 ```
 
-## Configuration
-
-Copy `.env.example` to `.env` and configure:
+### Option 2: Local Development
 
 ```bash
-# Database
-DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/notepassing
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# Security
-SECRET_KEY=your-secret-key-here-change-in-production
+# Install dependencies
+pip install -e ".[dev]"
 
-# Application
-DEBUG=true
-TEMP_ID_EXPIRE_MINUTES=10
-TEMP_ID_BUFFER_MINUTES=5
-BOOST_COOLDOWN_MINUTES=5
+# Set environment variables
+cp .env.example .env
+# Edit .env with your database URL
+
+# Run migrations
+alembic upgrade head
+
+# Start server
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## API Documentation
+---
 
-When running, access:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+## 📚 API Overview
 
 ### REST Endpoints
 
-#### Device Service
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/device/init` | Initialize/recover device |
-| GET | `/api/v1/device/{device_id}?requester_id={id}` | Get device profile |
-| PUT | `/api/v1/device/{device_id}` | Update device profile |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/device/init` | POST | Initialize or recover a device |
+| `/device/{id}` | GET | Get device profile (with privacy filtering) |
+| `/device/{id}` | PUT | Update device profile |
+| `/temp-id/refresh` | POST | Generate new temporary BLE ID |
+| `/presence/resolve` | POST | Resolve scanned temp IDs to profiles |
+| `/presence/disconnect` | POST | Report device leaving Bluetooth range |
+| `/friends` | GET | List friends |
+| `/friends/request` | POST | Send friend request |
+| `/friends/{id}` | PUT | Accept/reject friend request |
+| `/friends/{id}` | DELETE | Remove friend |
+| `/messages` | POST | Send message |
+| `/messages/{session_id}` | GET | Get message history |
+| `/messages/read` | POST | Mark messages as read |
+| `/blocks` | POST | Block user |
 
-#### Temp ID Service
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/temp-id/refresh` | Generate new temp ID |
+### WebSocket Events
 
-#### Messaging Service
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/messages` | Send message |
-| GET | `/api/v1/messages/{session_id}` | Get message history |
-| POST | `/api/v1/messages/read` | Mark messages as read |
+Connect to `/api/v1/ws?device_id={device_id}`
 
-#### Friendship Service
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/friends` | Get friend list |
-| POST | `/api/v1/friends/request` | Send friend request |
-| PUT | `/api/v1/friends/{request_id}` | Accept/reject request |
-| DELETE | `/api/v1/friends/{friend_id}` | Delete friendship |
+**Client → Server:**
+- `send_message` - Send a message
+- `mark_read` - Mark messages as read
+- `ping` - Keep connection alive
 
-#### Block Service
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/block` | Block user |
-| DELETE | `/api/v1/block/{target_id}` | Unblock user |
+**Server → Client:**
+- `connected` - Connection confirmed
+- `new_message` - New message received
+- `message_sent` - Message delivery confirmation
+- `friend_request` - New friend request
+- `friend_response` - Friend request response
+- `boost` - Friend came nearby
+- `session_expired` - Temporary session ended
+- `messages_read` - Messages marked as read
 
-### WebSocket
+---
 
-```
-WSS /api/v1/ws?device_id={device_id}
-```
+## 🔐 Privacy & Security
 
-**Client → Server Actions:**
-```json
-{"action": "send_message", "payload": {"receiver_id": "...", "content": "...", "type": "common"}}
-{"action": "mark_read", "payload": {"message_ids": ["..."]}}
-{"action": "ping"}
-```
+### Temp ID Lifecycle
+- Valid for **10 minutes** (5 min active + 5 min buffer)
+- Derived from `device_id` + `secret_key` for verification
+- Automatic rotation prevents tracking
 
-**Server → Client Events:**
-```json
-{"type": "connected", "payload": {"device_id": "...", "server_time": "..."}}
-{"type": "new_message", "payload": {...}}
-{"type": "message_sent", "payload": {...}}
-{"type": "friend_request", "payload": {...}}
-{"type": "error", "payload": {"code": 4001, "message": "..."}}
-```
+### Session Types
+| Type | Description | Limitations |
+|------|-------------|-------------|
+| **Temporary** | Non-friends chatting | Max 2 messages before reply, expires on disconnect |
+| **Permanent** | Friends chatting | No restrictions |
 
-## Testing
+### Profile Visibility
+| Mode | Friends | Strangers (Anonymous) | Strangers (Public) |
+|------|---------|----------------------|-------------------|
+| Avatar | ✅ Visible | ❌ Hidden | ✅ Visible |
+| Nickname | ✅ Visible | ✅ Visible | ✅ Visible |
+| Role Name | ✅ Visible | ✅ Visible | ❌ Hidden |
+| Profile | ✅ Visible | ❌ Hidden | ❌ Hidden |
+
+---
+
+## 🧪 Testing
 
 ```bash
 # Run all tests
-uv run pytest tests/ -v
-
-# Run specific test file
-uv run pytest tests/test_device.py -v
-uv run pytest tests/test_integration.py -v
+pytest
 
 # Run with coverage
-uv run pytest tests/ --cov=app --cov-report=html
+pytest --cov=app --cov-report=html
 
-# Run integration tests only
-uv run pytest tests/test_integration.py -v
+# Run specific test file
+pytest tests/test_device.py -v
 ```
 
-## Project Structure
+---
+
+## 📁 Project Structure
 
 ```
-backend/
+.
 ├── app/
-│   ├── main.py              # FastAPI entry
-│   ├── config.py            # Settings
-│   ├── database.py          # DB connection
-│   ├── dependencies.py      # FastAPI deps
+│   ├── __init__.py
+│   ├── main.py              # FastAPI application entry
+│   ├── config.py            # Settings management
+│   ├── database.py          # DB connection & session
+│   ├── dependencies.py      # FastAPI dependencies
 │   ├── models/              # SQLAlchemy models
 │   │   ├── device.py
 │   │   ├── temp_id.py
+│   │   ├── presence.py
 │   │   ├── session.py
 │   │   ├── message.py
 │   │   ├── friendship.py
 │   │   ├── block.py
-│   │   └── ...
-│   ├── schemas/             # Pydantic schemas
+│   │   └── ws_connection.py
+│   ├── routers/             # API route handlers
+│   │   ├── device.py
+│   │   ├── temp_id.py
+│   │   ├── presence.py
+│   │   ├── friendship.py
+│   │   ├── message.py
+│   │   ├── block.py
+│   │   └── websocket.py
+│   ├── schemas/             # Pydantic request/response models
 │   ├── services/            # Business logic
 │   │   ├── device_service.py
 │   │   ├── temp_id_service.py
-│   │   ├── message_service.py
+│   │   ├── presence_service.py
 │   │   ├── relation_service.py
+│   │   ├── message_service.py
 │   │   └── websocket_manager.py
-│   ├── routers/             # API routes
-│   │   ├── device.py
-│   │   ├── temp_id.py
-│   │   ├── message.py
-│   │   ├── friendship.py
-│   │   ├── block.py
-│   │   └── websocket.py
-│   └── utils/               # Utilities
-│       ├── error_codes.py
-│       ├── exceptions.py
-│       ├── response.py
-│       ├── uuid_utils.py
-│       └── validators.py
-├── tests/                   # Test files
-├── pyproject.toml           # Project config
-├── Dockerfile               # Docker build
-├── docker-compose.yml       # Docker compose
-└── README.md                # This file
+│   └── utils/               # Utilities & helpers
+├── alembic/                 # Database migrations
+├── tests/                   # Test suite
+├── docker-compose.yml       # Docker orchestration
+├── Dockerfile               # Container definition
+├── pyproject.toml           # Dependencies & tool config
+└── README.md
 ```
 
-## Business Logic
+---
 
-### Temp Session Rules
-- Non-friends can send max 2 messages before receiving a reply
-- Session expires 1 minute after Bluetooth disconnect
-- Auto-creates on first message
+## ⚙️ Configuration
 
-### Friend Request Rules
-- 24h cooldown after rejection
-- Cannot send if blocked (4004)
-- Duplicate requests rejected (4009)
+Environment variables (see `.env.example`):
 
-### Privacy Rules
-- Anonymous mode: strangers see `role_name`, not `avatar`
-- Friends always see full profile
-- Blocked users invisible to each other
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | `postgresql+asyncpg://...` | Database connection string |
+| `SECRET_KEY` | `change-me-in-production` | Key for temp ID generation |
+| `DEBUG` | `true` | Enable debug mode |
+| `TEMP_ID_EXPIRE_MINUTES` | `10` | Temp ID total lifetime |
+| `TEMP_ID_BUFFER_MINUTES` | `5` | Buffer for old ID after refresh |
+| `BOOST_COOLDOWN_MINUTES` | `5` | Minimum time between boost alerts |
 
-### Temp ID Lifecycle
-- Valid for 10 minutes (5 active + 5 buffer)
-- Refresh before expiration
-- Old ID valid for 5 minutes after refresh
+---
 
-## Error Codes
+## 🛣️ Roadmap
 
-| Code | Description |
-|------|-------------|
-| 0 | Success |
-| 4001 | Temp chat limit reached |
-| 4002 | Temp session expired |
-| 4003 | Not in Bluetooth range |
-| 4004 | Blocked by user |
-| 4005 | Friend request cooldown |
-| 4006 | Invalid temp ID |
-| 4007 | Device not initialized |
-| 4008 | Friendship not exist |
-| 4009 | Duplicate operation |
-| 5001 | Invalid params |
-| 5002 | Server error |
+- [ ] Media message support (images, voice)
+- [ ] End-to-end encryption
+- [ ] Group chats for nearby users
+- [ ] Geofenced message broadcasting
+- [ ] Push notifications (APNs/FCM)
+- [ ] Message persistence improvements
 
-## License
+---
 
-MIT License
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+Built with [FastAPI](https://fastapi.tiangolo.com) and [SQLAlchemy](https://www.sqlalchemy.org/).
+
+</div>
