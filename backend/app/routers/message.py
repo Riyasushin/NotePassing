@@ -1,4 +1,5 @@
 """Message router."""
+import logging
 from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, Query
@@ -12,7 +13,10 @@ from app.schemas.message import (
     MarkReadResponse,
 )
 from app.services.message_service import MessageService
+from app.services.websocket_manager import push_new_message, push_message_sent
 from app.utils.response import success_response
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/messages", tags=["Messaging"])
 
@@ -35,6 +39,33 @@ async def send_message(
     - `heartbeat`: Presence notification for BLE range confirmation
     """
     result = await MessageService.send_message(db, data)
+
+    message_payload = {
+        "message_id": result.message_id,
+        "sender_id": data.sender_id,
+        "session_id": result.session_id,
+        "content": data.content,
+        "type": data.type,
+        "created_at": result.created_at.isoformat(),
+    }
+
+    sent_to_receiver = await push_new_message(data.receiver_id, message_payload)
+    logger.info(
+        "WS push new_message to %s: %s",
+        data.receiver_id,
+        "delivered" if sent_to_receiver else "offline/not connected",
+    )
+
+    await push_message_sent(
+        data.sender_id,
+        {
+            "message_id": result.message_id,
+            "session_id": result.session_id,
+            "status": result.status,
+            "created_at": result.created_at.isoformat(),
+        },
+    )
+
     return success_response(data=result.model_dump())
 
 
