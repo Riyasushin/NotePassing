@@ -30,12 +30,12 @@ interface RelationApi {
         @Query("device_id") deviceId: String
     ): ApiResponse<Unit?>
 
-    @POST("block")
+    @POST("blocks")
     suspend fun blockUser(
         @Body request: BlockRequest
     ): ApiResponse<Unit?>
 
-    @DELETE("block/{target_device_id}")
+    @DELETE("blocks/{target_device_id}")
     suspend fun unblockUser(
         @Path("target_device_id") targetDeviceId: String,
         @Query("device_id") deviceId: String

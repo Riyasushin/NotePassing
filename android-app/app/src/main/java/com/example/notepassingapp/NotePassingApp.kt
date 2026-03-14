@@ -36,8 +36,8 @@ class NotePassingApp : Application() {
      */
     fun bootstrapNetwork() {
         appScope.launch {
-            val ok = DeviceRepository.initDevice()
-            Log.d("NotePassingApp", "Device init result: $ok")
+            val result = DeviceRepository.initDevice()
+            Log.d("NotePassingApp", "Device init result: $result")
 
             WebSocketManager.connect()
             RelationRepository.syncFriends()

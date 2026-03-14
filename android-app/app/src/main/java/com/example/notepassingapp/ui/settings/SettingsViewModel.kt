@@ -64,9 +64,9 @@ class SettingsViewModel : ViewModel() {
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSyncing = true)
-            val ok = DeviceRepository.syncProfile()
+            val result = DeviceRepository.syncProfile()
             _uiState.value = _uiState.value.copy(isSyncing = false)
-            Log.d("SettingsViewModel", "Profile sync: $ok")
+            Log.d("SettingsViewModel", "Profile sync: $result")
         }
     }
 

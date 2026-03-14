@@ -11,33 +11,37 @@ object DeviceRepository {
 
     /**
      * 启动时调用：向服务器注册/恢复设备。
-     * 成功返回 true，失败返回 false（不影响本地使用）。
+     * 返回详细结果字符串（Debug 面板用）。
      */
-    suspend fun initDevice(): Boolean {
+    suspend fun initDevice(): String {
         return try {
+            val did = DeviceManager.getDeviceId()
+            val nick = DeviceManager.getNickname()
+            Log.d(TAG, "initDevice: id=${did.take(8)}... nick=$nick")
+
             val request = DeviceInitRequest(
-                deviceId = DeviceManager.getDeviceId(),
-                nickname = DeviceManager.getNickname(),
+                deviceId = did,
+                nickname = nick.ifBlank { "用户${did.take(6)}" },
                 profile = DeviceManager.getProfile()
             )
             val response = ApiClient.deviceApi.initDevice(request)
             if (response.isSuccess) {
                 Log.d(TAG, "Device init success, is_new=${response.data?.isNew}")
-                true
+                "成功 ✓ is_new=${response.data?.isNew}"
             } else {
                 Log.w(TAG, "Device init failed: ${response.code} ${response.message}")
-                false
+                "服务器拒绝: code=${response.code} msg=${response.message}"
             }
         } catch (e: Exception) {
             Log.e(TAG, "Device init error", e)
-            false
+            "异常: ${e.javaClass.simpleName}: ${e.message}"
         }
     }
 
     /**
-     * 更新设备资料到服务器（设置页保存时调用）。
+     * 更新设备资料到服务器。
      */
-    suspend fun syncProfile(): Boolean {
+    suspend fun syncProfile(): String {
         return try {
             val request = DeviceUpdateRequest(
                 nickname = DeviceManager.getNickname(),
@@ -51,16 +55,18 @@ object DeviceRepository {
             )
             if (response.isSuccess) {
                 Log.d(TAG, "Profile synced to server")
-                true
+                "同步成功 ✓"
             } else {
                 Log.w(TAG, "Profile sync failed: ${response.code} ${response.message}")
-                false
+                "服务器拒绝: code=${response.code} msg=${response.message}"
             }
         } catch (e: Exception) {
             Log.e(TAG, "Profile sync error", e)
-            false
+            "异常: ${e.javaClass.simpleName}: ${e.message}"
         }
     }
+
+    fun isInitSuccess(result: String) = result.contains("✓")
 
     /**
      * 获取对方的资料（用于聊天页展示对方信息）。

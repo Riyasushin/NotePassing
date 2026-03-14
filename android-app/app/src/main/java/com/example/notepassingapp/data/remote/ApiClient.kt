@@ -23,6 +23,7 @@ object ApiClient {
             .connectTimeout(NetworkConfig.CONNECT_TIMEOUT_SEC, TimeUnit.SECONDS)
             .readTimeout(NetworkConfig.READ_TIMEOUT_SEC, TimeUnit.SECONDS)
             .writeTimeout(NetworkConfig.WRITE_TIMEOUT_SEC, TimeUnit.SECONDS)
+            .addInterceptor(DebugLogInterceptor)
             .addInterceptor(loggingInterceptor)
             .build()
     }

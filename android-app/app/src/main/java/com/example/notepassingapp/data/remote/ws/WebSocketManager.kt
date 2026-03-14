@@ -35,6 +35,9 @@ object WebSocketManager {
     private val _incomingMessages = MutableSharedFlow<WsServerMessage>(extraBufferCapacity = 64)
     val incomingMessages: SharedFlow<WsServerMessage> = _incomingMessages.asSharedFlow()
 
+    private val _rawMessages = MutableSharedFlow<String>(extraBufferCapacity = 64)
+    val rawMessages: SharedFlow<String> = _rawMessages.asSharedFlow()
+
     private val _connectionState = MutableSharedFlow<ConnectionState>(replay = 1, extraBufferCapacity = 4)
     val connectionState: SharedFlow<ConnectionState> = _connectionState.asSharedFlow()
 
@@ -77,12 +80,11 @@ object WebSocketManager {
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
+                Log.d(TAG, "WS raw: $text")
+                _rawMessages.tryEmit(text)
                 try {
                     val msg = gson.fromJson(text, WsServerMessage::class.java)
-                    Log.d(TAG, "WS received: ${msg.type}")
-
                     if (msg.type == WsTypes.PONG) return
-
                     _incomingMessages.tryEmit(msg)
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to parse WS message: $text", e)
