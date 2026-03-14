@@ -1,9 +1,16 @@
 package com.example.notepassingapp.data.repository
 
+import android.net.Uri
+import android.provider.OpenableColumns
 import android.util.Log
+import android.webkit.MimeTypeMap
+import com.example.notepassingapp.NotePassingApp
 import com.example.notepassingapp.data.remote.ApiClient
 import com.example.notepassingapp.data.remote.dto.*
 import com.example.notepassingapp.util.DeviceManager
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 object DeviceRepository {
 
@@ -66,6 +73,41 @@ object DeviceRepository {
         }
     }
 
+    suspend fun uploadAvatar(uri: Uri): Result<String> {
+        return try {
+            val contentResolver = NotePassingApp.instance.contentResolver
+            val mimeType = contentResolver.getType(uri) ?: "image/jpeg"
+            val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: return Result.failure(Exception("无法读取所选图片"))
+
+            val extension = MimeTypeMap.getSingleton()
+                .getExtensionFromMimeType(mimeType)
+                ?.takeIf { it.isNotBlank() }
+                ?: "jpg"
+            val fileName = queryDisplayName(uri) ?: "avatar.$extension"
+
+            val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+            val filePart = MultipartBody.Part.createFormData("file", fileName, requestBody)
+
+            val response = ApiClient.deviceApi.uploadAvatar(
+                DeviceManager.getDeviceId(),
+                filePart,
+            )
+
+            if (response.isSuccess && response.data != null) {
+                DeviceManager.setAvatar(response.data.avatarUrl)
+                Log.d(TAG, "Avatar uploaded: ${response.data.avatarUrl}")
+                Result.success(response.data.avatarUrl)
+            } else {
+                Log.w(TAG, "Avatar upload failed: ${response.code} ${response.message}")
+                Result.failure(Exception("${response.code}: ${response.message}"))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Avatar upload error", e)
+            Result.failure(e)
+        }
+    }
+
     fun isInitSuccess(result: String) = result.contains("✓")
 
     /**
@@ -80,6 +122,24 @@ object DeviceRepository {
         } catch (e: Exception) {
             Log.e(TAG, "Get profile error", e)
             null
+        }
+    }
+
+    private fun queryDisplayName(uri: Uri): String? {
+        val contentResolver = NotePassingApp.instance.contentResolver
+        return contentResolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            val columnIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (columnIndex >= 0 && cursor.moveToFirst()) {
+                cursor.getString(columnIndex)
+            } else {
+                null
+            }
         }
     }
 }

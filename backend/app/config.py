@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
+
+    # Local media upload settings
+    upload_root_dir: str = "uploads"
+    avatar_upload_dir: str = "uploads/avatars"
+    avatar_upload_max_bytes: int = 5 * 1024 * 1024
     
     # Temp ID settings
     temp_id_expire_minutes: int = 10  # Total expiration time

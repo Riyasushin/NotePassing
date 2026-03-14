@@ -230,6 +230,39 @@ PUT /api/v1/device/{device_id}
 
 ---
 
+### 1.4 上传头像
+
+```
+POST /api/v1/device/{device_id}/avatar
+```
+
+**请求方式：** `multipart/form-data`
+
+**表单字段：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| file | binary | ✓ | 图片文件，当前用于头像上传 |
+
+**响应：**
+
+```json
+{
+    "code": 0,
+    "message": "ok",
+    "data": {
+        "avatar_url": "http://10.70.0.197:8000/uploads/avatars/550e8400_avatar.jpg",
+        "updated_at": "2026-03-15T10:30:00Z"
+    }
+}
+```
+
+**Server 行为：** 将图片保存到本地 `uploads/avatars/` 目录，生成可直接访问的 URL，并自动写回 `devices.avatar`。如果同一设备之前已有本地上传头像，则替换旧文件。
+
+**Android 行为：** 设置页通过系统相册选图后，直接调用该接口；成功后把返回的 `avatar_url` 自动写回本地设置并用于头像显示。
+
+---
+
 ## 2. Temp ID Service（临时 ID 服务）
 
 ### 2.1 刷新临时 ID

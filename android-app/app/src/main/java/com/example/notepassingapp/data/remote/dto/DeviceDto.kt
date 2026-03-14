@@ -52,3 +52,8 @@ data class DeviceUpdateData(
     @SerializedName("role_name") val roleName: String?,
     @SerializedName("updated_at") val updatedAt: String
 )
+
+data class AvatarUploadData(
+    @SerializedName("avatar_url") val avatarUrl: String,
+    @SerializedName("updated_at") val updatedAt: String
+)

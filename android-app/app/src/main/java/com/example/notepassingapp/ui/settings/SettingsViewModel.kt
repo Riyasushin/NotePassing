@@ -1,5 +1,6 @@
 package com.example.notepassingapp.ui.settings
 
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -17,7 +18,9 @@ data class SettingsUiState(
     val profile: String = "",
     val isAnonymous: Boolean = false,
     val roleName: String = "",
-    val isSyncing: Boolean = false
+    val isSyncing: Boolean = false,
+    val isUploadingAvatar: Boolean = false,
+    val transientMessage: String? = null,
 )
 
 class SettingsViewModel : ViewModel() {
@@ -50,6 +53,35 @@ class SettingsViewModel : ViewModel() {
 
     fun updateAvatar(value: String) {
         _uiState.value = _uiState.value.copy(avatar = value)
+    }
+
+    fun uploadAvatar(uri: Uri) {
+        if (_uiState.value.isUploadingAvatar) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isUploadingAvatar = true,
+                transientMessage = null,
+            )
+
+            val result = DeviceRepository.uploadAvatar(uri)
+            _uiState.value = if (result.isSuccess) {
+                _uiState.value.copy(
+                    avatar = result.getOrNull().orEmpty(),
+                    isUploadingAvatar = false,
+                    transientMessage = "头像上传成功",
+                )
+            } else {
+                _uiState.value.copy(
+                    isUploadingAvatar = false,
+                    transientMessage = result.exceptionOrNull()?.message ?: "头像上传失败",
+                )
+            }
+        }
+    }
+
+    fun consumeTransientMessage() {
+        _uiState.value = _uiState.value.copy(transientMessage = null)
     }
 
     fun updateAnonymous(value: Boolean) {

@@ -1,6 +1,8 @@
 """Device service for managing device operations."""
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,17 +11,29 @@ from app.models.device import Device
 from app.models.friendship import Friendship
 from app.models.block import Block
 from app.schemas.device import (
+    AvatarUploadResponse,
     DeviceInitRequest,
     DeviceInitResponse,
     DeviceUpdateRequest,
     DeviceProfileResponse,
 )
+from app.config import get_settings
 from app.utils.validators import validate_device_id, validate_nickname, validate_profile, validate_tags
 from app.utils.exceptions import DeviceNotInitializedError, InvalidParamsError, BlockedByUserError
-from app.utils.uuid_utils import is_valid_device_id
+from app.utils.uuid_utils import generate_uuid, is_valid_device_id
 
 
 ANONYMOUS_STRANGER_NICKNAME = "不愿透露姓名的ta"
+settings = get_settings()
+AVATAR_CONTENT_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+    "image/heic": ".heic",
+    "image/heif": ".heif",
+}
 
 
 class DeviceService:
@@ -228,6 +242,64 @@ class DeviceService:
             "role_name": device.role_name,
             "updated_at": device.updated_at,
         }
+
+    @staticmethod
+    async def upload_avatar(
+        db: AsyncSession,
+        device_id: str,
+        filename: Optional[str],
+        content_type: Optional[str],
+        content: bytes,
+        public_base_url: str,
+    ) -> AvatarUploadResponse:
+        """Save an uploaded avatar locally and update the device profile URL."""
+        validate_device_id(device_id)
+
+        if not content:
+            raise InvalidParamsError("avatar file is required")
+
+        if len(content) > settings.avatar_upload_max_bytes:
+            max_mb = settings.avatar_upload_max_bytes // (1024 * 1024)
+            raise InvalidParamsError(f"avatar file must not exceed {max_mb}MB")
+
+        normalized_content_type = (content_type or "").lower()
+        if not normalized_content_type.startswith("image/"):
+            raise InvalidParamsError("avatar file must be an image")
+
+        extension = AVATAR_CONTENT_TYPES.get(normalized_content_type)
+        if extension is None:
+            extension = Path(filename or "").suffix.lower() or ".jpg"
+
+        result = await db.execute(
+            select(Device).where(Device.device_id == device_id)
+        )
+        device = result.scalar_one_or_none()
+
+        if not device:
+            raise DeviceNotInitializedError()
+
+        upload_dir = Path(settings.avatar_upload_dir)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        avatar_name = f"{device_id}_{generate_uuid()}{extension}"
+        avatar_path = upload_dir / avatar_name
+        avatar_path.write_bytes(content)
+
+        previous_local_name = DeviceService._extract_local_avatar_name(device.avatar)
+        if previous_local_name and previous_local_name != avatar_name:
+            previous_path = upload_dir / previous_local_name
+            if previous_path.exists():
+                previous_path.unlink()
+
+        avatar_url = f"{public_base_url.rstrip('/')}/uploads/avatars/{avatar_name}"
+        device.avatar = avatar_url
+        device.updated_at = datetime.utcnow()
+        await db.flush()
+
+        return AvatarUploadResponse(
+            avatar_url=avatar_url,
+            updated_at=device.updated_at,
+        )
     
     @staticmethod
     async def check_device_exists(db: AsyncSession, device_id: str) -> bool:
@@ -248,3 +320,15 @@ class DeviceService:
             select(Device.device_id).where(Device.device_id == device_id)
         )
         return result.scalar_one_or_none() is not None
+
+    @staticmethod
+    def _extract_local_avatar_name(avatar_url: Optional[str]) -> Optional[str]:
+        """Return the local uploaded avatar filename if the current avatar points to /uploads/avatars/."""
+        if not avatar_url:
+            return None
+
+        parsed_path = urlparse(avatar_url).path or avatar_url
+        normalized = parsed_path.replace("\\", "/")
+        if "/uploads/avatars/" not in normalized:
+            return None
+        return Path(normalized).name

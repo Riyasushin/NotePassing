@@ -1,5 +1,8 @@
 package com.example.notepassingapp.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +26,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -31,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.notepassingapp.ui.components.UserAvatar
 import kotlinx.coroutines.launch
 
 @Composable
@@ -41,6 +46,20 @@ fun SettingsScreen(
     val state by settingsViewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            settingsViewModel.uploadAvatar(uri)
+        }
+    }
+
+    LaunchedEffect(state.transientMessage) {
+        state.transientMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            settingsViewModel.consumeTransientMessage()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -56,6 +75,34 @@ fun SettingsScreen(
 
         // --- 基本信息 ---
         SectionCard(title = "基本信息") {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                UserAvatar(
+                    avatarUrl = state.avatar.ifBlank { null },
+                    isFriend = true,
+                    size = 84.dp,
+                    contentDescription = "我的头像",
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    enabled = !state.isUploadingAvatar,
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Text(if (state.isUploadingAvatar) "上传中..." else "从相册选择头像")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             OutlinedTextField(
                 value = state.nickname,
                 onValueChange = { settingsViewModel.updateNickname(it) },
@@ -82,6 +129,7 @@ fun SettingsScreen(
                 value = state.avatar,
                 onValueChange = { settingsViewModel.updateAvatar(it) },
                 label = { Text("头像 URL") },
+                readOnly = true,
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)

@@ -1,6 +1,7 @@
 package com.example.notepassingapp.data.remote.api
 
 import com.example.notepassingapp.data.remote.dto.*
+import okhttp3.MultipartBody
 import retrofit2.http.*
 
 /**
@@ -24,4 +25,11 @@ interface DeviceApi {
         @Path("device_id") deviceId: String,
         @Body request: DeviceUpdateRequest
     ): ApiResponse<DeviceUpdateData>
+
+    @Multipart
+    @POST("device/{device_id}/avatar")
+    suspend fun uploadAvatar(
+        @Path("device_id") deviceId: String,
+        @Part file: MultipartBody.Part
+    ): ApiResponse<AvatarUploadData>
 }

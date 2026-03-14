@@ -389,6 +389,49 @@ class TestDeviceEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["code"] == 4007  # DEVICE_NOT_INITIALIZED
+
+    @pytest.mark.asyncio
+    async def test_upload_avatar_endpoint(self, client: AsyncClient):
+        """Test POST /api/v1/device/{device_id}/avatar."""
+        device_id = generate_device_id()
+
+        await client.post("/api/v1/device/init", json={
+            "device_id": device_id,
+            "nickname": "Avatar User",
+        })
+
+        response = await client.post(
+            f"/api/v1/device/{device_id}/avatar",
+            files={"file": ("avatar.jpg", b"fake-image-bytes", "image/jpeg")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"] == 0
+        assert data["data"]["avatar_url"].startswith("http://test/uploads/avatars/")
+
+        profile_response = await client.get(f"/api/v1/device/{device_id}?requester_id={device_id}")
+        profile_data = profile_response.json()
+        assert profile_data["data"]["avatar"] == data["data"]["avatar_url"]
+
+    @pytest.mark.asyncio
+    async def test_upload_avatar_endpoint_rejects_non_image(self, client: AsyncClient):
+        """Test avatar upload rejects non-image files."""
+        device_id = generate_device_id()
+
+        await client.post("/api/v1/device/init", json={
+            "device_id": device_id,
+            "nickname": "Avatar User",
+        })
+
+        response = await client.post(
+            f"/api/v1/device/{device_id}/avatar",
+            files={"file": ("avatar.txt", b"plain-text", "text/plain")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["code"] == 5001
     
     @pytest.mark.asyncio
     async def test_health_endpoint(self, client: AsyncClient):

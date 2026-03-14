@@ -1,6 +1,9 @@
 """NotePassing API main application."""
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.utils.exceptions import setup_exception_handlers
@@ -30,6 +33,11 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    upload_root = Path(settings.upload_root_dir)
+    upload_root.mkdir(parents=True, exist_ok=True)
+    Path(settings.avatar_upload_dir).mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=str(upload_root)), name="uploads")
     
     # Include routers
     app.include_router(device.router, prefix="/api/v1")

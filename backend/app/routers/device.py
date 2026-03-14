@@ -1,7 +1,8 @@
 """Device router."""
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, File, Request, UploadFile
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import DbDep
+from app.database import get_db
 from app.schemas.device import (
     DeviceInitRequest,
     DeviceUpdateRequest,
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/device", tags=["Device"])
 @router.post("/init", response_model=dict)
 async def init_device(
     data: DeviceInitRequest,
-    db: DbDep,
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """
     Initialize or recover a device.
@@ -31,7 +32,7 @@ async def init_device(
 async def get_device(
     device_id: str,
     requester_id: str,
-    db: DbDep,
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """
     Get device profile with privacy filtering.
@@ -47,7 +48,7 @@ async def get_device(
 async def update_device(
     device_id: str,
     data: DeviceUpdateRequest,
-    db: DbDep,
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """
     Update device profile (partial update).
@@ -56,3 +57,27 @@ async def update_device(
     """
     result = await DeviceService.update_device(db, device_id, data)
     return success_response(data=result)
+
+
+@router.post("/{device_id}/avatar", response_model=dict)
+async def upload_avatar(
+    device_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    file: UploadFile = File(...),
+) -> dict:
+    """Upload a local avatar image and write the resulting URL back to the device profile."""
+    try:
+        content = await file.read()
+    finally:
+        await file.close()
+
+    result = await DeviceService.upload_avatar(
+        db=db,
+        device_id=device_id,
+        filename=file.filename,
+        content_type=file.content_type,
+        content=content,
+        public_base_url=str(request.base_url),
+    )
+    return success_response(data=result.model_dump())

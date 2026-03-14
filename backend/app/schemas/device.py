@@ -50,3 +50,9 @@ class DeviceProfileResponse(BaseModel):
     is_anonymous: bool
     role_name: Optional[str] = None
     is_friend: bool
+
+
+class AvatarUploadResponse(BaseModel):
+    """Avatar upload result."""
+    avatar_url: str
+    updated_at: datetime
