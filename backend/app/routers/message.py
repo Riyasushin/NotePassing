@@ -1,7 +1,8 @@
 """Message router."""
 import logging
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
 from fastapi import APIRouter, Query
 
 from app.dependencies import DbDep

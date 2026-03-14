@@ -1,6 +1,6 @@
 """Message service for managing chat messages."""
 from datetime import datetime, timedelta
-from typing import List, Optional, Tuple
+from typing import Optional
 
 from sqlalchemy import select, update, desc, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession

@@ -1,10 +1,8 @@
 """WebSocket router."""
-import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 from app.services.websocket_manager import manager, push_error
 from app.services.message_service import MessageService
-from app.services.relation_service import RelationService
 from app.schemas.message import SendMessageRequest, MarkReadRequest
 from app.utils.validators import validate_device_id
 from app.utils.exceptions import NotePassingException
@@ -90,23 +88,21 @@ async def websocket_endpoint(
 async def handle_send_message(sender_id: str, payload: dict):
     """Handle send_message action from WebSocket."""
     from app.services.websocket_manager import push_new_message, push_message_sent
-    from app.database import AsyncSessionLocal
-    
+    from app.database import get_session_factory
+
     try:
-        # Create database session
-        async with AsyncSessionLocal() as db:
-            # Build request
+        session_factory = get_session_factory()
+        async with session_factory() as db:
             request = SendMessageRequest(
                 sender_id=sender_id,
                 receiver_id=payload.get("receiver_id"),
                 content=payload.get("content"),
                 type=payload.get("type", "common"),
             )
-            
-            # Send message
+
             result = await MessageService.send_message(db, request)
-            
-            # Confirm to sender
+            await db.commit()
+
             await push_message_sent(
                 sender_id,
                 {
@@ -114,10 +110,9 @@ async def handle_send_message(sender_id: str, payload: dict):
                     "session_id": result.session_id,
                     "status": result.status,
                     "created_at": result.created_at.isoformat(),
-                }
+                },
             )
-            
-            # Notify receiver if online
+
             await push_new_message(
                 request.receiver_id,
                 {
@@ -127,32 +122,30 @@ async def handle_send_message(sender_id: str, payload: dict):
                     "content": request.content,
                     "type": request.type,
                     "created_at": result.created_at.isoformat(),
-                }
+                },
             )
-    
+
     except NotePassingException as e:
         await push_error(sender_id, e.code, e.message)
-    except Exception as e:
+    except Exception:
         await push_error(sender_id, 5002, "Failed to send message")
 
 
 async def handle_mark_read(device_id: str, payload: dict):
     """Handle mark_read action from WebSocket."""
-    from app.database import AsyncSessionLocal
-    
+    from app.database import get_session_factory
+
     try:
-        # Create database session
-        async with AsyncSessionLocal() as db:
-            # Build request
+        session_factory = get_session_factory()
+        async with session_factory() as db:
             request = MarkReadRequest(
                 device_id=device_id,
                 message_ids=payload.get("message_ids", []),
             )
-            
-            # Mark messages as read
+
             result = await MessageService.mark_read(db, request)
-            
-            # Confirm to device
+            await db.commit()
+
             await manager.send_personal_message(
                 device_id,
                 {
@@ -160,10 +153,10 @@ async def handle_mark_read(device_id: str, payload: dict):
                     "payload": {
                         "updated_count": result.updated_count,
                     },
-                }
+                },
             )
-    
+
     except NotePassingException as e:
         await push_error(device_id, e.code, e.message)
-    except Exception as e:
+    except Exception:
         await push_error(device_id, 5002, "Failed to mark messages as read")

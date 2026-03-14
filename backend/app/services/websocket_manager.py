@@ -1,10 +1,8 @@
 """WebSocket connection manager for handling real-time connections."""
-import json
 from typing import Dict, Optional
 from datetime import datetime
 
-from fastapi import WebSocket, WebSocketDisconnect
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import WebSocket
 
 from app.utils.uuid_utils import generate_uuid
 

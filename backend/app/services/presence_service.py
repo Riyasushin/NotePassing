@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.presence import Presence
 from app.models.device import Device
 from app.models.block import Block
-from app.models.friendship import Friendship
 from app.models.session import Session
 from app.schemas.presence import (
     PresenceResolveRequest,
@@ -21,10 +20,7 @@ from app.schemas.presence import (
 from app.services.temp_id_service import TempIDService
 from app.services.device_service import DeviceService
 from app.utils.validators import validate_device_id
-from app.utils.exceptions import (
-    DeviceNotInitializedError,
-    BlockedByUserError,
-)
+from app.utils.exceptions import DeviceNotInitializedError
 from app.utils.distance import estimate_distance
 from app.config import get_settings
 
@@ -92,22 +88,16 @@ class PresenceService:
             if block_result.scalar_one_or_none():
                 continue
             
-            # Get target device profile with privacy filtering
             try:
                 profile = await DeviceService.get_device(
                     db, target_device_id, data.device_id
                 )
             except Exception:
                 continue
-            
-            # Calculate distance
+
             distance = estimate_distance(scanned.rssi)
-            
-            # Check if friend
-            is_friend = await PresenceService._check_friendship(
-                db, data.device_id, target_device_id
-            )
-            
+            is_friend = profile.is_friend
+
             nearby_device = NearbyDevice(
                 temp_id=scanned.temp_id,
                 device_id=profile.device_id,
@@ -121,19 +111,19 @@ class PresenceService:
                 is_friend=is_friend,
             )
             nearby_devices.append(nearby_device)
-            
-            # Check for boost (friend coming nearby) BEFORE updating presence
+
+            boost_triggered = False
             if is_friend:
                 boost = await PresenceService._check_boost(
                     db, data.device_id, target_device_id, distance
                 )
                 if boost:
                     boost_alerts.append(boost)
-            
-            # Update presence record (after boost check)
+                    boost_triggered = True
+
             await PresenceService._update_presence(
                 db, data.device_id, target_device_id, scanned.rssi,
-                boost_triggered=bool(is_friend and boost if is_friend else False)
+                boost_triggered=boost_triggered,
             )
         
         return PresenceResolveResponse(
@@ -198,30 +188,6 @@ class PresenceService:
             session_expired=session_expired,
             session_id=expired_session_id,
         )
-    
-    @staticmethod
-    async def _check_friendship(
-        db: AsyncSession,
-        device_a: str,
-        device_b: str,
-    ) -> bool:
-        """Check if two devices are friends."""
-        result = await db.execute(
-            select(Friendship).where(
-                or_(
-                    and_(
-                        Friendship.sender_id == device_a,
-                        Friendship.receiver_id == device_b,
-                    ),
-                    and_(
-                        Friendship.sender_id == device_b,
-                        Friendship.receiver_id == device_a,
-                    ),
-                ),
-                Friendship.status == "accepted",
-            )
-        )
-        return result.scalar_one_or_none() is not None
     
     @staticmethod
     async def _update_presence(

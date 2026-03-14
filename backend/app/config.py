@@ -32,6 +32,6 @@ class Settings(BaseSettings):
     boost_cooldown_minutes: int = 5
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     return Settings()

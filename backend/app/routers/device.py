@@ -1,13 +1,10 @@
 """Device router."""
-from fastapi import APIRouter, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter
 
 from app.dependencies import DbDep
 from app.schemas.device import (
     DeviceInitRequest,
-    DeviceInitResponse,
     DeviceUpdateRequest,
-    DeviceProfileResponse,
 )
 from app.services.device_service import DeviceService
 from app.utils.response import success_response
@@ -15,7 +12,7 @@ from app.utils.response import success_response
 router = APIRouter(prefix="/device", tags=["Device"])
 
 
-@router.post("/init", response_model=dict, status_code=status.HTTP_200_OK)
+@router.post("/init", response_model=dict)
 async def init_device(
     data: DeviceInitRequest,
     db: DbDep,
@@ -27,14 +24,7 @@ async def init_device(
     - If device_id is new: creates device and returns is_new=true
     """
     result = await DeviceService.init_device(db, data)
-    
-    # Determine status code based on is_new
-    status_code = status.HTTP_201_CREATED if result.is_new else status.HTTP_200_OK
-    
-    return success_response(
-        data=result.model_dump(),
-        message="ok",
-    )
+    return success_response(data=result.model_dump())
 
 
 @router.get("/{device_id}", response_model=dict)

@@ -42,26 +42,15 @@ class RelationService:
         db: AsyncSession,
         device_id: str,
     ) -> FriendListResponse:
-        """
-        Get friend list for a device.
-        
-        Args:
-            db: Database session
-            device_id: Device ID
-        
-        Returns:
-            Friend list response
-        """
+        """Get friend list for a device."""
         validate_device_id(device_id)
-        
-        # Check if device exists
+
         device_result = await db.execute(
             select(Device).where(Device.device_id == device_id)
         )
         if not device_result.scalar_one_or_none():
             raise DeviceNotInitializedError()
-        
-        # Query accepted friendships where device is either sender or receiver
+
         result = await db.execute(
             select(Friendship, Device).join(
                 Device,
@@ -79,21 +68,32 @@ class RelationService:
                 Friendship.status == "accepted",
             )
         )
-        
+
         friends = []
         for friendship, friend_device in result.all():
+            friend_id = friend_device.device_id
+            a, b = (device_id, friend_id) if device_id < friend_id else (friend_id, device_id)
+
+            sess_result = await db.execute(
+                select(Session.last_message_at).where(
+                    Session.device_a_id == a,
+                    Session.device_b_id == b,
+                )
+            )
+            last_chat_at = sess_result.scalar_one_or_none()
+
             friends.append(
                 FriendItem(
-                    device_id=friend_device.device_id,
+                    device_id=friend_id,
                     nickname=friend_device.nickname,
                     avatar=friend_device.avatar,
                     tags=friend_device.tags or [],
                     profile=friend_device.profile,
                     is_anonymous=friend_device.is_anonymous,
-                    last_chat_at=None,  # Could be populated from session
+                    last_chat_at=last_chat_at,
                 )
             )
-        
+
         return FriendListResponse(friends=friends)
     
     @staticmethod
