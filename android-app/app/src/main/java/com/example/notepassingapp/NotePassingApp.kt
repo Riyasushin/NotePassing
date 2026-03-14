@@ -5,6 +5,7 @@ import android.util.Log
 import com.example.notepassingapp.data.local.AppDatabase
 import com.example.notepassingapp.data.remote.ws.WebSocketManager
 import com.example.notepassingapp.data.repository.DeviceRepository
+import com.example.notepassingapp.data.repository.IncomingMessageHandler
 import com.example.notepassingapp.data.repository.RelationRepository
 import com.example.notepassingapp.util.DeviceManager
 import kotlinx.coroutines.CoroutineScope
@@ -40,6 +41,7 @@ class NotePassingApp : Application() {
             Log.d("NotePassingApp", "Device init result: $result")
 
             WebSocketManager.connect()
+            IncomingMessageHandler.start(appScope)
             RelationRepository.syncFriends()
         }
     }

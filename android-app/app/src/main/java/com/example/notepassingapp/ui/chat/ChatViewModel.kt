@@ -1,17 +1,12 @@
 package com.example.notepassingapp.ui.chat
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.notepassingapp.NotePassingApp
 import com.example.notepassingapp.data.local.entity.MessageEntity
-import com.example.notepassingapp.data.remote.ws.WebSocketManager
-import com.example.notepassingapp.data.remote.ws.WsNewMessagePayload
-import com.example.notepassingapp.data.remote.ws.WsTypes
 import com.example.notepassingapp.data.repository.MessageRepository
 import com.example.notepassingapp.util.DeviceManager
-import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -37,7 +32,6 @@ class ChatViewModel(
     private val friendDao = db.friendDao()
     private val chatHistoryDao = db.chatHistoryDao()
     private val myDeviceId = DeviceManager.getDeviceId()
-    private val gson = Gson()
 
     private val _uiState = MutableStateFlow(ChatUiState(peerDeviceId = peerDeviceId))
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -48,7 +42,7 @@ class ChatViewModel(
 
     init {
         loadPeerInfo()
-        listenForIncomingMessages()
+        observeMessagesForLimit()
     }
 
     private fun loadPeerInfo() {
@@ -67,43 +61,12 @@ class ChatViewModel(
     }
 
     /**
-     * 监听 WebSocket 推送：如果收到来自当前聊天对象的消息，存入本地 Room。
-     * Room 的 Flow 会自动触发 UI 更新。
+     * 当 Room 中消息列表变化时（全局 Handler 写入、自己发送等），
+     * 自动重新检查发送限制。
      */
-    private fun listenForIncomingMessages() {
+    private fun observeMessagesForLimit() {
         viewModelScope.launch {
-            WebSocketManager.incomingMessages.collect { msg ->
-                if (msg.type == WsTypes.NEW_MESSAGE && msg.payload != null) {
-                    try {
-                        val payload = gson.fromJson(msg.payload, WsNewMessagePayload::class.java)
-                        if (payload.senderId == peerDeviceId) {
-                            val entity = MessageEntity(
-                                messageId = payload.messageId,
-                                sessionId = payload.sessionId,
-                                senderId = payload.senderId,
-                                receiverId = myDeviceId,
-                                content = payload.content,
-                                type = payload.type,
-                                status = "received"
-                            )
-                            messageDao.insert(entity)
-
-                            chatHistoryDao.getByDeviceId(peerDeviceId)?.let { history ->
-                                chatHistoryDao.insertOrReplace(
-                                    history.copy(
-                                        lastMessage = payload.content,
-                                        lastMessageAt = System.currentTimeMillis()
-                                    )
-                                )
-                            }
-
-                            checkSendLimit()
-                        }
-                    } catch (e: Exception) {
-                        Log.e("ChatViewModel", "Failed to handle incoming message", e)
-                    }
-                }
-            }
+            messages.collect { checkSendLimit() }
         }
     }
 
@@ -131,11 +94,14 @@ class ChatViewModel(
             return
         }
         val myCount = messageDao.countMySentToPeer(myDeviceId, peerDeviceId)
-        if (myCount >= 2) {
+        val peerCount = messageDao.countPeerSentToMe(peerDeviceId, myDeviceId)
+        if (myCount >= 2 && peerCount == 0) {
             _uiState.value = _uiState.value.copy(
                 canSend = false,
                 sendLimitMessage = "对方回复前最多发送 2 条消息"
             )
+        } else {
+            _uiState.value = _uiState.value.copy(canSend = true, sendLimitMessage = null)
         }
     }
 

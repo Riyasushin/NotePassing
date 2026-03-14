@@ -41,6 +41,13 @@ interface MessageDao {
     """)
     suspend fun countMySentToPeer(myDeviceId: String, peerId: String): Int
 
+    /** 统计某人发给我的消息数（用于判断对方是否已回复） */
+    @Query("""
+        SELECT COUNT(*) FROM messages 
+        WHERE sender_id = :peerId AND receiver_id = :myDeviceId
+    """)
+    suspend fun countPeerSentToMe(peerId: String, myDeviceId: String): Int
+
     @Query("""
         SELECT COUNT(*) FROM messages 
         WHERE session_id = :sessionId AND sender_id = :myDeviceId
