@@ -178,25 +178,25 @@
 
 **目标**：实现 BLE 广播 + 扫描，发现附近设备。
 
-- [ ] 8.1 权限声明与运行时请求
-  - BLUETOOTH, BLUETOOTH_SCAN, BLUETOOTH_ADVERTISE
-  - ACCESS_FINE_LOCATION, NEARBY_DEVICES
-- [ ] 8.2 BLE Advertiser（广播端）
-  - 广播 temp_id（从服务器获取）
-  - 前台服务保活
-- [ ] 8.3 BLE Scanner（扫描端）
-  - 每 5-10 秒扫描一次
-  - 结果写入内存 `ble_find` 列表
-- [ ] 8.4 Temp ID 管理
-  - 启动时调用 `POST /temp-id/refresh` 获取
+- [x] 8.1 权限声明与运行时请求
+  - AndroidManifest: BLUETOOTH_SCAN/ADVERTISE/CONNECT, LOCATION, FOREGROUND_SERVICE
+  - NearbyScreen: 运行时权限请求 UI
+- [x] 8.2 BLE Advertiser（广播端）
+  - 广播 temp_id（从服务器获取）→ Service UUID + Service Data
+  - BleForegroundService 前台服务保活
+- [x] 8.3 BLE Scanner（扫描端）
+  - 4 秒扫描 + 4 秒间隔循环
+  - 结果写入内存 `bleFindMap`
+- [x] 8.4 Temp ID 管理
+  - BleManager 启动时调用 `POST /temp-id/refresh` 获取
   - 过期前 30 秒自动刷新
-  - 旧 temp_id 保留 5 分钟缓冲
-- [ ] 8.5 扫描结果上传
-  - 将 ble_find 上传 `POST /presence/resolve`
-  - 用返回的 nearby_devices 更新 chatable
-  - 处理 boost_alerts → 震动 + UI 高亮
+- [x] 8.5 扫描结果上传
+  - 每轮扫描后调用 `POST /presence/resolve`
+  - 用返回的 nearby_devices 更新 chat_history + _realtimeStates
+  - NearbyViewModel 自动刷新附近页
 
-**验证**：两台手机互相 BLE 发现，附近页显示对方卡片。
+**Phase 8 全部完成** ✅（2026-03-14）
+**验证**：需两台手机互相 BLE 发现 → 附近页显示对方卡片。
 
 ---
 

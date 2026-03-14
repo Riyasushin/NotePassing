@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.notepassingapp.ble.BleManager
 import com.example.notepassingapp.data.remote.HttpLogEntry
 import java.text.SimpleDateFormat
 import java.util.*
@@ -36,6 +37,7 @@ fun DebugScreen(
     val wsState by viewModel.wsState.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
+    val bleState by viewModel.bleState.collectAsState()
 
     Scaffold(
         topBar = {
@@ -59,7 +61,12 @@ fun DebugScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            StatusBar(wsState = wsState, isLoading = isLoading)
+            StatusBar(
+            wsState = wsState,
+            isLoading = isLoading,
+            bleRunning = bleState.running,
+            bleFound = bleState.foundCount
+        )
             HorizontalDivider()
 
             ApiTestButtons(
@@ -96,7 +103,7 @@ fun DebugScreen(
 // ===== 状态栏 =====
 
 @Composable
-private fun StatusBar(wsState: String, isLoading: Boolean) {
+private fun StatusBar(wsState: String, isLoading: Boolean, bleRunning: Boolean, bleFound: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -105,18 +112,24 @@ private fun StatusBar(wsState: String, isLoading: Boolean) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            val color = when (wsState) {
+            val wsColor = when (wsState) {
                 "CONNECTED" -> Color(0xFF4CAF50)
                 "CONNECTING", "RECONNECTING" -> Color(0xFFFFC107)
                 else -> Color(0xFFF44336)
             }
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .background(color, RoundedCornerShape(5.dp))
+            Box(modifier = Modifier.size(10.dp).background(wsColor, RoundedCornerShape(5.dp)))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("WS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.width(12.dp))
+
+            val bleColor = if (bleRunning) Color(0xFF2196F3) else Color(0xFF757575)
+            Box(modifier = Modifier.size(10.dp).background(bleColor, RoundedCornerShape(5.dp)))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                if (bleRunning) "BLE($bleFound)" else "BLE off",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("WS: $wsState", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
         }
         if (isLoading) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
@@ -193,14 +206,24 @@ private fun LogEntryRow(entry: LogEntry) {
         "WebSocket" -> Color(0xFFFFD54F)
         "配置" -> Color(0xFFB0BEC5)
         "设备" -> Color(0xFFCE93D8)
+        "WS原始" -> Color(0xFFFFAB40)
+        "WS解析" -> Color(0xFF4FC3F7)
+        "BLE" -> Color(0xFF2196F3)
         else -> Color(0xFF90A4AE)
     }
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-        Text(entry.time, color = Color(0xFF757575), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-        Spacer(modifier = Modifier.width(6.dp))
-        Text("[${entry.tag}]", color = tagColor, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(entry.message, color = if (entry.isError) Color(0xFFE57373) else Color(0xFFE0E0E0), fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Row {
+            Text(entry.time, color = Color(0xFF757575), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("[${entry.tag}]", color = tagColor, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+        }
+        Text(
+            entry.message,
+            color = if (entry.isError) Color(0xFFE57373) else Color(0xFFE0E0E0),
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.padding(start = 4.dp, top = 1.dp)
+        )
     }
 }
 

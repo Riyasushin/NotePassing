@@ -39,13 +39,11 @@ class ChatViewModel(
     private val myDeviceId = DeviceManager.getDeviceId()
     private val gson = Gson()
 
-    private val sessionId = "local-session-$peerDeviceId"
-
     private val _uiState = MutableStateFlow(ChatUiState(peerDeviceId = peerDeviceId))
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     val messages: StateFlow<List<MessageEntity>> = messageDao
-        .getBySessionId(sessionId)
+        .getByPeer(myDeviceId, peerDeviceId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
@@ -121,7 +119,6 @@ class ChatViewModel(
         viewModelScope.launch {
             MessageRepository.sendMessage(
                 peerDeviceId = peerDeviceId,
-                sessionId = sessionId,
                 content = text
             )
             checkSendLimit()
@@ -133,7 +130,7 @@ class ChatViewModel(
             _uiState.value = _uiState.value.copy(canSend = true, sendLimitMessage = null)
             return
         }
-        val myCount = messageDao.countMySentMessages(sessionId, myDeviceId)
+        val myCount = messageDao.countMySentToPeer(myDeviceId, peerDeviceId)
         if (myCount >= 2) {
             _uiState.value = _uiState.value.copy(
                 canSend = false,

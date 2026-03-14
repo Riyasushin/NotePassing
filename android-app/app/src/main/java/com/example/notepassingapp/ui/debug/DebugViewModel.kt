@@ -2,6 +2,7 @@ package com.example.notepassingapp.ui.debug
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.notepassingapp.ble.BleManager
 import com.example.notepassingapp.data.remote.ApiClient
 import com.example.notepassingapp.data.remote.DebugLogInterceptor
 import com.example.notepassingapp.data.remote.HttpLogEntry
@@ -42,6 +43,8 @@ class DebugViewModel : ViewModel() {
     private val _selectedTab = MutableStateFlow(0)
     val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
 
+    val bleState = BleManager.state
+
     private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
 
     init {
@@ -57,6 +60,7 @@ class DebugViewModel : ViewModel() {
         observeWsMessages()
         observeWsRaw()
         observeHttpLogs()
+        observeBleState()
     }
 
     fun selectTab(index: Int) { _selectedTab.value = index }
@@ -73,7 +77,7 @@ class DebugViewModel : ViewModel() {
     private fun observeWsMessages() {
         viewModelScope.launch {
             WebSocketManager.incomingMessages.collect { msg ->
-                val payloadStr = msg.payload?.toString()?.take(200) ?: "(null)"
+                val payloadStr = msg.payload?.toString()?.take(500) ?: "(null)"
                 addLog("WS解析", "[${msg.type}] $payloadStr")
             }
         }
@@ -82,7 +86,9 @@ class DebugViewModel : ViewModel() {
     private fun observeWsRaw() {
         viewModelScope.launch {
             WebSocketManager.rawMessages.collect { raw ->
-                addLog("WS原始", raw.take(300))
+                if (!raw.contains("\"type\":\"pong\"") && !raw.contains("\"type\": \"pong\"")) {
+                    addLog("WS原始", raw.take(500))
+                }
             }
         }
     }
@@ -91,6 +97,16 @@ class DebugViewModel : ViewModel() {
         viewModelScope.launch {
             DebugLogInterceptor.logs.collect {
                 _httpLogs.value = DebugLogInterceptor.logList.reversed()
+            }
+        }
+    }
+
+    private fun observeBleState() {
+        viewModelScope.launch {
+            BleManager.state.collect { s ->
+                if (s.running) {
+                    addLog("BLE", "advertising=${s.isAdvertising} scanning=${s.isScanning} found=${s.foundCount} tempId=${s.tempId?.take(8) ?: "null"}")
+                }
             }
         }
     }

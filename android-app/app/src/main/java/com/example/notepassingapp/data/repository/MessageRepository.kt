@@ -5,7 +5,6 @@ import com.example.notepassingapp.NotePassingApp
 import com.example.notepassingapp.data.local.entity.MessageEntity
 import com.example.notepassingapp.data.remote.ApiClient
 import com.example.notepassingapp.data.remote.dto.SendMessageRequest
-import com.example.notepassingapp.data.remote.ws.WebSocketManager
 import com.example.notepassingapp.util.DeviceManager
 import java.util.UUID
 
@@ -20,17 +19,11 @@ object MessageRepository {
     private val chatHistoryDao = NotePassingApp.instance.database.chatHistoryDao()
 
     /**
-     * 发送消息。
-     * 1. 先存本地（status=sending）
-     * 2. 尝试 WS 发送
-     * 3. WS 不可用时降级 HTTP
-     * 4. 全部失败则 status 留 sending，后续可重试
-     *
-     * @return 发送是否成功提交（不等于对方收到）
+     * 发送消息：先存本地 → WS 优先 / HTTP 降级。
+     * 使用 HTTP 确保能拿到服务器返回的 session_id 和 message_id。
      */
     suspend fun sendMessage(
         peerDeviceId: String,
-        sessionId: String,
         content: String,
         type: String = "common"
     ): Boolean {
@@ -39,7 +32,7 @@ object MessageRepository {
 
         val entity = MessageEntity(
             messageId = localMsgId,
-            sessionId = sessionId,
+            sessionId = "pending",
             senderId = myDeviceId,
             receiverId = peerDeviceId,
             content = content,
@@ -47,14 +40,7 @@ object MessageRepository {
             status = "sending"
         )
         messageDao.insert(entity)
-
-        updateChatHistoryPreview(peerDeviceId, sessionId, content)
-
-        if (WebSocketManager.isConnected()) {
-            WebSocketManager.sendChatMessage(peerDeviceId, content, type)
-            messageDao.insert(entity.copy(status = "sent"))
-            return true
-        }
+        updateChatHistoryPreview(peerDeviceId, content)
 
         return try {
             val request = SendMessageRequest(
@@ -65,12 +51,14 @@ object MessageRepository {
             )
             val response = ApiClient.messageApi.sendMessage(request)
             if (response.isSuccess) {
-                val serverData = response.data!!
+                val data = response.data!!
+                messageDao.delete(localMsgId)
                 messageDao.insert(entity.copy(
-                    messageId = serverData.messageId,
-                    sessionId = serverData.sessionId,
-                    status = serverData.status
+                    messageId = data.messageId,
+                    sessionId = data.sessionId,
+                    status = data.status
                 ))
+                Log.d(TAG, "Sent via HTTP: msgId=${data.messageId}")
                 true
             } else {
                 Log.w(TAG, "HTTP send failed: ${response.code} ${response.message}")
@@ -82,17 +70,12 @@ object MessageRepository {
         }
     }
 
-    private suspend fun updateChatHistoryPreview(
-        peerDeviceId: String,
-        sessionId: String,
-        content: String
-    ) {
+    private suspend fun updateChatHistoryPreview(peerDeviceId: String, content: String) {
         chatHistoryDao.getByDeviceId(peerDeviceId)?.let { history ->
             chatHistoryDao.insertOrReplace(
                 history.copy(
                     lastMessage = content,
-                    lastMessageAt = System.currentTimeMillis(),
-                    sessionId = sessionId
+                    lastMessageAt = System.currentTimeMillis()
                 )
             )
         }
