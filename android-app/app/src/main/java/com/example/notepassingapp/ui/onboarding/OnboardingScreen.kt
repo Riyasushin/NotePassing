@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.notepassingapp.NotePassingApp
 import com.example.notepassingapp.ui.settings.SettingsViewModel
 
 /**
@@ -84,6 +85,7 @@ fun OnboardingScreen(
         Button(
             onClick = {
                 settingsViewModel.completeOnboarding()
+                NotePassingApp.instance.bootstrapNetwork()
                 onComplete()
             },
             enabled = state.nickname.isNotBlank(),

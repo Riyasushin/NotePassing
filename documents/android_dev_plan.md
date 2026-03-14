@@ -155,27 +155,22 @@
 
 **目标**：接通服务器 REST API + WebSocket。
 
-- [ ] 7.1 引入依赖：Retrofit、OkHttp、Gson/Moshi
-- [ ] 7.2 定义 API Service 接口
-  - `DeviceApi`：init, getDevice, updateDevice
-  - `TempIdApi`：refresh
-  - `PresenceApi`：resolve, disconnect
-  - `MessageApi`：send, getHistory, markRead
-  - `RelationApi`：getFriends, sendRequest, respondRequest, deleteFriend, block, unblock
-- [ ] 7.3 WebSocket 管理器（WebSocketManager）
-  - 连接 / 断线重连
-  - 发送：send_message, mark_read, ping
-  - 接收：new_message, message_sent, friend_request, friend_response, boost, session_expired, messages_read, error
-  - 每 30 秒 ping 保活
-- [ ] 7.4 Repository 层
-  - `DeviceRepository`：本地 + 远程
-  - `PresenceRepository`
-  - `MessageRepository`：WebSocket 优先，HTTP 降级
-  - `RelationRepository`
-- [ ] 7.5 首次启动时调用 `POST /device/init`
-- [ ] 7.6 设置页保存时调用 `PUT /device/{device_id}`
+- [x] 7.1 引入依赖：Retrofit 2.11.0、OkHttp 4.12.0、Gson
+- [x] 7.2 定义 API Service 接口（5 个 Service，15 个端点）+ DTO 数据类
+- [x] 7.3 WebSocket 消息类型定义（WsMessage + WsPayloads）
+- [x] 7.4 WebSocketManager（连接/断线重连/ping 保活/消息分发）
+- [x] 7.5 Repository 层
+  - `DeviceRepository`：init + syncProfile + getProfile
+  - `TempIdRepository`：refresh + 缓存当前 temp_id
+  - `PresenceRepository`：resolveNearby + reportDisconnect
+  - `MessageRepository`：WS 优先发送，HTTP 降级，本地 Room 同步
+  - `RelationRepository`：syncFriends + sendRequest + respond + block/unblock
+- [x] 7.6 启动时调用 `POST /device/init` + WS 连接 + 好友同步
+- [x] 7.7 设置页保存时调用 `PUT /device/{device_id}`
+- [x] 7.8 聊天消息走网络（WS 优先，HTTP 降级）+ 监听 WS 推送入库
 
-**验证**：启动时成功调用 device/init；设置页修改同步到服务器。
+**Phase 7 全部完成** ✅（2026-03-14）
+**待联调**：填入实际 `NetworkConfig.BASE_URL` / `WS_URL` 后即可联调。
 
 ---
 

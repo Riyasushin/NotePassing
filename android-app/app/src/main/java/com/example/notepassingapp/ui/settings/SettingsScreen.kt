@@ -15,6 +15,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -34,6 +35,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
+    onNavigateToDebug: () -> Unit = {},
     settingsViewModel: SettingsViewModel = viewModel()
 ) {
     val state by settingsViewModel.uiState.collectAsState()
@@ -140,6 +142,17 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("保存修改", style = MaterialTheme.typography.titleMedium)
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // --- 调试面板入口 ---
+        OutlinedButton(
+            onClick = onNavigateToDebug,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text("调试面板", style = MaterialTheme.typography.bodyMedium)
         }
 
         SnackbarHost(hostState = snackbarHostState)

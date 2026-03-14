@@ -1,18 +1,23 @@
 package com.example.notepassingapp.ui.chat
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.notepassingapp.NotePassingApp
 import com.example.notepassingapp.data.local.entity.MessageEntity
+import com.example.notepassingapp.data.remote.ws.WebSocketManager
+import com.example.notepassingapp.data.remote.ws.WsNewMessagePayload
+import com.example.notepassingapp.data.remote.ws.WsTypes
+import com.example.notepassingapp.data.repository.MessageRepository
 import com.example.notepassingapp.util.DeviceManager
+import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 data class ChatUiState(
     val peerDeviceId: String = "",
@@ -20,14 +25,9 @@ data class ChatUiState(
     val isFriend: Boolean = false,
     val inputText: String = "",
     val canSend: Boolean = true,
-    val sendLimitMessage: String? = null  // 非好友超 2 条时的提示
+    val sendLimitMessage: String? = null
 )
 
-/**
- * 聊天页 ViewModel。
- * 通过 peerDeviceId 区分不同聊天对象。
- * sessionId 用于消息分组（Phase 7 接入服务器后由服务器生成，目前本地模拟）。
- */
 class ChatViewModel(
     private val peerDeviceId: String
 ) : ViewModel() {
@@ -37,8 +37,8 @@ class ChatViewModel(
     private val friendDao = db.friendDao()
     private val chatHistoryDao = db.chatHistoryDao()
     private val myDeviceId = DeviceManager.getDeviceId()
+    private val gson = Gson()
 
-    // 用 peerDeviceId 作为临时 sessionId（后续由服务器分配）
     private val sessionId = "local-session-$peerDeviceId"
 
     private val _uiState = MutableStateFlow(ChatUiState(peerDeviceId = peerDeviceId))
@@ -50,6 +50,7 @@ class ChatViewModel(
 
     init {
         loadPeerInfo()
+        listenForIncomingMessages()
     }
 
     private fun loadPeerInfo() {
@@ -67,6 +68,47 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * 监听 WebSocket 推送：如果收到来自当前聊天对象的消息，存入本地 Room。
+     * Room 的 Flow 会自动触发 UI 更新。
+     */
+    private fun listenForIncomingMessages() {
+        viewModelScope.launch {
+            WebSocketManager.incomingMessages.collect { msg ->
+                if (msg.type == WsTypes.NEW_MESSAGE && msg.payload != null) {
+                    try {
+                        val payload = gson.fromJson(msg.payload, WsNewMessagePayload::class.java)
+                        if (payload.senderId == peerDeviceId) {
+                            val entity = MessageEntity(
+                                messageId = payload.messageId,
+                                sessionId = payload.sessionId,
+                                senderId = payload.senderId,
+                                receiverId = myDeviceId,
+                                content = payload.content,
+                                type = payload.type,
+                                status = "received"
+                            )
+                            messageDao.insert(entity)
+
+                            chatHistoryDao.getByDeviceId(peerDeviceId)?.let { history ->
+                                chatHistoryDao.insertOrReplace(
+                                    history.copy(
+                                        lastMessage = payload.content,
+                                        lastMessageAt = System.currentTimeMillis()
+                                    )
+                                )
+                            }
+
+                            checkSendLimit()
+                        }
+                    } catch (e: Exception) {
+                        Log.e("ChatViewModel", "Failed to handle incoming message", e)
+                    }
+                }
+            }
+        }
+    }
+
     fun updateInput(text: String) {
         _uiState.value = _uiState.value.copy(inputText = text)
     }
@@ -74,36 +116,18 @@ class ChatViewModel(
     fun sendMessage() {
         val text = _uiState.value.inputText.trim()
         if (text.isBlank()) return
+        _uiState.value = _uiState.value.copy(inputText = "")
 
         viewModelScope.launch {
-            val entity = MessageEntity(
-                messageId = UUID.randomUUID().toString(),
+            MessageRepository.sendMessage(
+                peerDeviceId = peerDeviceId,
                 sessionId = sessionId,
-                senderId = myDeviceId,
-                receiverId = peerDeviceId,
-                content = text,
-                type = "common",
-                status = "sent"
+                content = text
             )
-            messageDao.insert(entity)
-            _uiState.value = _uiState.value.copy(inputText = "")
-
-            // 更新 chat_history 中的最后消息预览
-            chatHistoryDao.getByDeviceId(peerDeviceId)?.let { history ->
-                chatHistoryDao.insertOrReplace(
-                    history.copy(
-                        lastMessage = text,
-                        lastMessageAt = System.currentTimeMillis(),
-                        sessionId = sessionId
-                    )
-                )
-            }
-
             checkSendLimit()
         }
     }
 
-    /** 非好友：未回复前最多发 2 条 */
     private suspend fun checkSendLimit() {
         if (_uiState.value.isFriend) {
             _uiState.value = _uiState.value.copy(canSend = true, sendLimitMessage = null)
@@ -118,10 +142,6 @@ class ChatViewModel(
         }
     }
 
-    /**
-     * ViewModelProvider.Factory：让 Navigation 能传参数创建 ViewModel。
-     * 因为 ViewModel 默认只有无参构造，我们需要传 peerDeviceId。
-     */
     class Factory(private val peerDeviceId: String) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {

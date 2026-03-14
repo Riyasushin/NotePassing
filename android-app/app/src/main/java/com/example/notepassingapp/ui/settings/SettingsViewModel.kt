@@ -1,17 +1,22 @@
 package com.example.notepassingapp.ui.settings
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.notepassingapp.data.repository.DeviceRepository
 import com.example.notepassingapp.util.DeviceManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 data class SettingsUiState(
     val deviceId: String = "",
     val nickname: String = "",
     val profile: String = "",
     val isAnonymous: Boolean = false,
-    val roleName: String = ""
+    val roleName: String = "",
+    val isSyncing: Boolean = false
 )
 
 class SettingsViewModel : ViewModel() {
@@ -49,18 +54,29 @@ class SettingsViewModel : ViewModel() {
         _uiState.value = _uiState.value.copy(roleName = value)
     }
 
-    /** 保存所有设置到本地 */
+    /** 保存到本地 + 异步同步到服务器 */
     fun save() {
         val state = _uiState.value
         DeviceManager.setNickname(state.nickname)
         DeviceManager.setProfile(state.profile)
         DeviceManager.setAnonymous(state.isAnonymous)
         DeviceManager.setRoleName(state.roleName.ifBlank { null })
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSyncing = true)
+            val ok = DeviceRepository.syncProfile()
+            _uiState.value = _uiState.value.copy(isSyncing = false)
+            Log.d("SettingsViewModel", "Profile sync: $ok")
+        }
     }
 
     /** 首次引导完成：保存并标记已初始化 */
     fun completeOnboarding() {
-        save()
+        val state = _uiState.value
+        DeviceManager.setNickname(state.nickname)
+        DeviceManager.setProfile(state.profile)
+        DeviceManager.setAnonymous(state.isAnonymous)
+        DeviceManager.setRoleName(state.roleName.ifBlank { null })
         DeviceManager.setInitialized(true)
     }
 }

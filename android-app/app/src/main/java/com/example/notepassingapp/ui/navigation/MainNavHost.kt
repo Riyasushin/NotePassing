@@ -19,6 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.notepassingapp.ui.chat.ChatScreen
 import com.example.notepassingapp.ui.chat.ChatViewModel
+import com.example.notepassingapp.ui.debug.DebugScreen
 import com.example.notepassingapp.ui.friends.FriendsScreen
 import com.example.notepassingapp.ui.nearby.NearbyScreen
 import com.example.notepassingapp.ui.onboarding.OnboardingScreen
@@ -27,6 +28,7 @@ import com.example.notepassingapp.util.DeviceManager
 
 private const val ROUTE_ONBOARDING = "onboarding"
 private const val ROUTE_CHAT = "chat/{peerDeviceId}"
+private const val ROUTE_DEBUG = "debug"
 
 fun chatRoute(peerDeviceId: String) = "chat/$peerDeviceId"
 
@@ -101,7 +103,13 @@ fun MainNavHost() {
             }
 
             composable(BottomNavItem.Settings.route) {
-                SettingsScreen()
+                SettingsScreen(
+                    onNavigateToDebug = { navController.navigate(ROUTE_DEBUG) }
+                )
+            }
+
+            composable(ROUTE_DEBUG) {
+                DebugScreen(onBack = { navController.popBackStack() })
             }
 
             // 聊天页：从路由参数取 peerDeviceId，用 Factory 创建带参数的 ViewModel
