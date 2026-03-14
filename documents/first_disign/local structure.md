@@ -1,19 +1,29 @@
-local app部分安排几个存储的list
-1.短距聊天list
-BLE_find list  存储所有扫描到的蓝牙模块，并保持一定更新频率
-heartbeat_receive list  接收别的用户发来的heart beat，并保持一定的更新频率，
+# Local Data Structure（服务器接口对齐）
 
-> 补充，heartbeat机制：处理A单向扫描到B，B没有单项扫描到A的情况。A会给所有BLE_find list的对象通过message通道发送heartbeat类型的消息，频率目前为1hz左右，对方接收到之后，用于维护heartbeat_receive_list的状态，最终让B把A也计算在chatable list中
+## 1. 附近发现
 
-chatable list：对BLE_find list和heartbeat_receive list 做相加操作，取得chatable list，实时更新
+| List | 说明 |
+|---|---|
+| `ble_find` | BLE 扫描到的设备，定频更新 |
+| `heartbeat_receive` | 收到的 heartbeat 消息，定频更新 |
+| `chatable` | `ble_find ∪ heartbeat_receive`，实时计算 |
 
+> heartbeat：解决 A 扫到 B 但 B 未扫到 A 的单向问题。A 通过服务器 message 通道向 ble_find 中所有对象发送 heartbeat（~1Hz），B 收到后维护 heartbeat_receive，从而将 A 纳入 chatable。
 
-2.好友机制
-friend list  接受对方申请，并同意；或发送对方申请，并被对方接受之后，添加对方进入friend list
+## 2. 好友
 
-3.拉黑机制
-block list 将对方单方向拉黑后进入block list
+| List | 说明 |
+|---|---|
+| `friend` | 双方互相同意好友申请后加入 |
 
-4.用户信息存储机制
-会对所有涉及到的用户申请并存储其个人信息，包括user_id、profile、头像、是否在匿名状态、昵称等，保持一定的更新频率
+## 3. 拉黑
 
+| List | 说明 |
+|---|---|
+| `block` | 单方向拉黑 |
+
+## 4. 用户信息缓存
+
+对所有涉及用户从服务器拉取并缓存，定频更新：
+
+`user_id` / `nickname` / `avatar` / `tags` / `profile` / `is_anonymous`
