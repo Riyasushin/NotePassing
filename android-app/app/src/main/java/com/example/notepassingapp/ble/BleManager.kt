@@ -195,7 +195,9 @@ object BleManager {
                     lastMessageAt = existing?.lastMessageAt,
                     lastSeenAt = now,
                     firstSeenAt = existing?.firstSeenAt ?: now,
-                    isSessionExpired = existing?.isSessionExpired ?: false,
+                    // Once a device is discovered again in the current scan window,
+                    // its temporary session becomes active again and the card should reappear.
+                    isSessionExpired = false,
                 )
             )
             
