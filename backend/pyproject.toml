@@ -1,0 +1,107 @@
+[project]
+name = "notepassing-server"
+version = "0.1.0"
+description = "NotePassing Server - A proximity-based social network backend"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "NotePassing Team"}
+]
+keywords = ["fastapi", "websocket", "bluetooth", "social", "proximity"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "sqlalchemy[asyncio]>=2.0.25",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.1",
+    "redis>=5.0.1",
+    "pydantic>=2.5.3",
+    "pydantic-settings>=2.1.0",
+    "python-multipart>=0.0.6",
+    "websockets>=12.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.4",
+    "pytest-asyncio>=0.23.3",
+    "pytest-postgresql>=5.0.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.26.0",
+    "black>=24.1.1",
+    "isort>=5.13.2",
+    "flake8>=7.0.0",
+    "mypy>=1.8.0",
+    "ruff>=0.1.14",
+]
+
+[project.scripts]
+notepassing = "app.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+python-preference = "only-system"
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = [
+    "E", "F", "I", "N", "W", "UP", "B", "C4", "SIM",
+]
+ignore = [
+    "E501",
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/*" = ["S"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+]
+markers = [
+    "unit: Unit tests for individual services",
+    "integration: Integration tests for API endpoints",
+    "e2e: End-to-end tests for complete scenarios",
+    "p0: Priority 0 - Must pass before release",
+    "p1: Priority 1 - Should pass before release",
+    "p2: Priority 2 - Nice to have",
+]
