@@ -36,5 +36,12 @@ data class ChatHistoryEntity(
     @ColumnInfo(name = "first_seen_at")
     val firstSeenAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "last_seen_at")
-    val lastSeenAt: Long = System.currentTimeMillis()
+    val lastSeenAt: Long = System.currentTimeMillis(),
+    
+    /** 
+     * 会话是否已过期（非好友离开蓝牙范围超过GRACE时间）。
+     * 过期后不能继续发送消息，但可查看历史记录。
+     */
+    @ColumnInfo(name = "is_session_expired", defaultValue = "false")
+    val isSessionExpired: Boolean = false
 )

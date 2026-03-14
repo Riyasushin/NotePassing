@@ -52,8 +52,14 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
                         distanceEstimate = device.distanceEstimate
                     )
                 }
+                
+                // Track non-friends who entered EXPIRED state to mark session expired
+                val newlyExpiredNonFriends = mutableListOf<String>()
+                
                 _realtimeStates.update { current ->
                     val merged = current.toMutableMap()
+                    
+                    // Handle devices that left ACTIVE state (enter GRACE)
                     current.forEach { (id, rt) ->
                         if (id !in newStates && rt.state == NearbyState.ACTIVE) {
                             val leftAt = rt.leftAt ?: now
@@ -61,11 +67,49 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
                                 merged[id] = rt.copy(state = NearbyState.GRACE, leftAt = leftAt)
                             } else {
                                 merged[id] = rt.copy(state = NearbyState.EXPIRED)
+                                // Check if this is a non-friend entering EXPIRED
+                                if (isNonFriend(id)) {
+                                    newlyExpiredNonFriends.add(id)
+                                }
                             }
                         }
                     }
+                    
+                    // Handle friends who completely left the range (from BleManager)
+                    event.leftFriendIds.forEach { leftId ->
+                        merged[leftId] = RealtimeState(
+                            state = NearbyState.EXPIRED,
+                            rssi = -100,
+                            distanceEstimate = 0f,
+                            leftAt = now
+                        )
+                    }
+                    
                     merged.putAll(newStates)
                     merged
+                }
+                
+                // Mark sessions as expired for non-friends who entered EXPIRED state
+                if (newlyExpiredNonFriends.isNotEmpty()) {
+                    markNonFriendSessionsExpired(newlyExpiredNonFriends)
+                }
+            }
+        }
+    }
+    
+    private suspend fun isNonFriend(deviceId: String): Boolean {
+        val entity = chatHistoryDao.getByDeviceId(deviceId)
+        return entity?.isFriend == false
+    }
+    
+    private fun markNonFriendSessionsExpired(deviceIds: List<String>) {
+        viewModelScope.launch {
+            deviceIds.forEach { deviceId ->
+                try {
+                    chatHistoryDao.markSessionExpired(deviceId)
+                    Log.d("NearbyViewModel", "Marked session expired for non-friend: $deviceId")
+                } catch (e: Exception) {
+                    Log.e("NearbyViewModel", "Failed to mark session expired for $deviceId", e)
                 }
             }
         }
@@ -89,13 +133,18 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
     }.thenByDescending { it.rssi }
         .thenBy { it.leftAt ?: Long.MAX_VALUE }
 
-    private fun ChatHistoryEntity.toNearbyUser(rt: RealtimeState?): NearbyUser {
-        val effectiveState = rt?.state ?: run {
-            val elapsed = System.currentTimeMillis() - lastSeenAt
-            when {
-                elapsed < 10_000 -> NearbyState.ACTIVE
-                elapsed < 60_000 -> NearbyState.GRACE
-                else -> NearbyState.EXPIRED
+    private suspend fun ChatHistoryEntity.toNearbyUser(rt: RealtimeState?): NearbyUser {
+        val effectiveState = if (isSessionExpired && !isFriend) {
+            // Session expired non-friends are always EXPIRED
+            NearbyState.EXPIRED
+        } else {
+            rt?.state ?: run {
+                val elapsed = System.currentTimeMillis() - lastSeenAt
+                when {
+                    elapsed < 10_000 -> NearbyState.ACTIVE
+                    elapsed < 60_000 -> NearbyState.GRACE
+                    else -> NearbyState.EXPIRED
+                }
             }
         }
         return NearbyUser(

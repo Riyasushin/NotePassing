@@ -28,6 +28,9 @@ object BleManager {
     private var collectJob: Job? = null
 
     private val bleFindMap = Collections.synchronizedMap(mutableMapOf<String, BleFoundDevice>())
+    
+    // Track which friends are currently nearby to handle leave events
+    private val nearbyFriendIds = Collections.synchronizedSet(mutableSetOf<String>())
 
     // ---------- exposed state ----------
 
@@ -47,7 +50,8 @@ object BleManager {
 
     data class NearbyUpdateEvent(
         val resolved: List<ResolvedDevice>,
-        val boostDeviceIds: List<String>
+        val boostDeviceIds: List<String>,
+        val leftFriendIds: List<String> = emptyList()  // Friends who left the range
     )
 
     data class ResolvedDevice(
@@ -83,6 +87,7 @@ object BleManager {
         advertiser?.stop()
         scanner?.stop()
         bleFindMap.clear()
+        nearbyFriendIds.clear()
         _state.value = State()
         Log.d(TAG, "BleManager stopped")
     }
@@ -145,17 +150,28 @@ object BleManager {
 
     private suspend fun resolveAndUpdate() {
         val snapshot = synchronized(bleFindMap) { bleFindMap.values.toList() }
-        if (snapshot.isEmpty()) return
+        if (snapshot.isEmpty()) {
+            // Check if any previously nearby friends have left
+            val leftFriends = checkForLeftFriends(emptySet())
+            if (leftFriends.isNotEmpty()) {
+                _nearbyUpdate.tryEmit(NearbyUpdateEvent(emptyList(), emptyList(), leftFriends))
+            }
+            return
+        }
 
         val scanned = snapshot.map { ScannedDevice(tempId = it.tempId, rssi = it.rssi) }
         val result = PresenceRepository.resolveNearby(scanned) ?: return
 
-        val dao = NotePassingApp.instance.database.chatHistoryDao()
+        val chatHistoryDao = NotePassingApp.instance.database.chatHistoryDao()
+        val friendDao = NotePassingApp.instance.database.friendDao()
         val now = System.currentTimeMillis()
+        
+        // Track current nearby friend IDs for this scan
+        val currentNearbyFriendIds = mutableSetOf<String>()
 
         val resolved = result.nearbyDevices.map { dto ->
-            val existing = dao.getByDeviceId(dto.deviceId)
-            dao.insertOrReplace(
+            val existing = chatHistoryDao.getByDeviceId(dto.deviceId)
+            chatHistoryDao.insertOrReplace(
                 ChatHistoryEntity(
                     deviceId = dto.deviceId,
                     nickname = dto.nickname,
@@ -168,6 +184,13 @@ object BleManager {
                     firstSeenAt = existing?.firstSeenAt ?: now
                 )
             )
+            
+            // Update friends table for nearby friends
+            if (dto.isFriend) {
+                currentNearbyFriendIds.add(dto.deviceId)
+                updateFriendNearbyStatus(friendDao, dto.deviceId, now)
+            }
+            
             val rssi = snapshot.find { it.tempId == dto.tempId }?.rssi ?: -100
             ResolvedDevice(
                 deviceId = dto.deviceId,
@@ -181,10 +204,45 @@ object BleManager {
                 distanceEstimate = dto.distanceEstimate
             )
         }
+        
+        // Check for friends who left the range
+        val leftFriends = checkForLeftFriends(currentNearbyFriendIds)
+        if (leftFriends.isNotEmpty()) {
+            // Update left friends' isNearby status to false
+            leftFriends.forEach { friendId ->
+                friendDao.updateNearbyStatus(friendId, false)
+                Log.d(TAG, "Friend left range: $friendId")
+            }
+        }
 
         val boostIds = result.boostAlerts.map { it.deviceId }
-        _nearbyUpdate.tryEmit(NearbyUpdateEvent(resolved, boostIds))
-        Log.d(TAG, "Resolved ${resolved.size} devices, ${boostIds.size} boosts")
+        _nearbyUpdate.tryEmit(NearbyUpdateEvent(resolved, boostIds, leftFriends))
+        Log.d(TAG, "Resolved ${resolved.size} devices, ${boostIds.size} boosts, ${leftFriends.size} friends left")
+    }
+    
+    /**
+     * Update friend's nearby status and increment meet count if newly nearby
+     */
+    private suspend fun updateFriendNearbyStatus(friendDao: com.example.notepassingapp.data.local.dao.FriendDao, friendId: String, now: Long) {
+        val wasNearby = nearbyFriendIds.contains(friendId)
+        if (!wasNearby) {
+            // Friend newly came into range - update isNearby and increment meetCount
+            friendDao.updateNearbyStatus(friendId, true)
+            friendDao.incrementMeetCount(friendId)
+            nearbyFriendIds.add(friendId)
+            Log.d(TAG, "Friend came into range: $friendId, meetCount incremented")
+        }
+    }
+    
+    /**
+     * Check for friends who were nearby but are no longer in range
+     */
+    private fun checkForLeftFriends(currentNearbyIds: Set<String>): List<String> {
+        synchronized(nearbyFriendIds) {
+            val leftFriends = nearbyFriendIds.filter { it !in currentNearbyIds }
+            nearbyFriendIds.removeAll(leftFriends.toSet())
+            return leftFriends
+        }
     }
 
     private fun cleanStale() {

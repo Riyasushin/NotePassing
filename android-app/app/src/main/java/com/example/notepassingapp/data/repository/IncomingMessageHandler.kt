@@ -5,6 +5,7 @@ import com.example.notepassingapp.NotePassingApp
 import com.example.notepassingapp.data.local.entity.MessageEntity
 import com.example.notepassingapp.data.remote.ws.WebSocketManager
 import com.example.notepassingapp.data.remote.ws.WsNewMessagePayload
+import com.example.notepassingapp.data.remote.ws.WsSessionExpiredPayload
 import com.example.notepassingapp.data.remote.ws.WsTypes
 import com.example.notepassingapp.util.DeviceManager
 import com.google.gson.Gson
@@ -51,6 +52,9 @@ object IncomingMessageHandler {
                 when (msg.type) {
                     WsTypes.NEW_MESSAGE -> handleNewMessage(
                         msg, myDeviceId, messageDao, chatHistoryDao
+                    )
+                    WsTypes.SESSION_EXPIRED -> handleSessionExpired(
+                        msg, chatHistoryDao
                     )
                 }
             }
@@ -123,6 +127,23 @@ object IncomingMessageHandler {
             Log.d(TAG, "Saved incoming msg ${payload.messageId} from ${payload.senderId}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to handle new_message", e)
+        }
+    }
+    
+    private suspend fun handleSessionExpired(
+        msg: com.example.notepassingapp.data.remote.ws.WsServerMessage,
+        chatHistoryDao: com.example.notepassingapp.data.local.dao.ChatHistoryDao,
+    ) {
+        if (msg.payload == null) return
+        try {
+            val payload = gson.fromJson(msg.payload, WsSessionExpiredPayload::class.java)
+            
+            // Mark the chat session as expired
+            chatHistoryDao.markSessionExpired(payload.peerDeviceId)
+            
+            Log.d(TAG, "Session expired for peer: ${payload.peerDeviceId}, reason: ${payload.reason}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to handle session_expired", e)
         }
     }
 }

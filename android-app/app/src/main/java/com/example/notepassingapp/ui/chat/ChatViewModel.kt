@@ -19,6 +19,7 @@ data class ChatUiState(
     val peerDeviceId: String = "",
     val peerNickname: String = "",
     val isFriend: Boolean = false,
+    val isSessionExpired: Boolean = false,
     val inputText: String = "",
     val canSend: Boolean = true,
     val sendLimitMessage: String? = null
@@ -53,10 +54,12 @@ class ChatViewModel(
             val history = chatHistoryDao.getByDeviceId(peerDeviceId)
             val nickname = friend?.nickname ?: history?.nickname ?: "未知用户"
             val isFriend = friend != null
+            val isSessionExpired = history?.isSessionExpired ?: false
 
             _uiState.value = _uiState.value.copy(
                 peerNickname = nickname,
-                isFriend = isFriend
+                isFriend = isFriend,
+                isSessionExpired = isSessionExpired
             )
             checkSendLimit()
         }
@@ -113,6 +116,15 @@ class ChatViewModel(
     }
 
     private suspend fun checkSendLimit() {
+        // Check if session is expired (for non-friends)
+        if (!_uiState.value.isFriend && _uiState.value.isSessionExpired) {
+            _uiState.value = _uiState.value.copy(
+                canSend = false,
+                sendLimitMessage = "会话已过期，对方已离开蓝牙范围，无法发送消息"
+            )
+            return
+        }
+        
         if (_uiState.value.isFriend) {
             _uiState.value = _uiState.value.copy(canSend = true, sendLimitMessage = null)
             return

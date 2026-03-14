@@ -35,4 +35,12 @@ interface ChatHistoryDao {
 
     @Query("DELETE FROM chat_history WHERE device_id = :deviceId")
     suspend fun delete(deviceId: String)
+    
+    /** 标记会话已过期（非好友离开范围） */
+    @Query("UPDATE chat_history SET is_session_expired = 1 WHERE device_id = :deviceId")
+    suspend fun markSessionExpired(deviceId: String)
+    
+    /** 重置会话过期状态（重新成为好友或重新发现） */
+    @Query("UPDATE chat_history SET is_session_expired = 0 WHERE device_id = :deviceId")
+    suspend fun resetSessionExpired(deviceId: String)
 }
