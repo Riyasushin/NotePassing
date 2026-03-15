@@ -10,6 +10,8 @@ import com.example.notepassingapp.data.local.entity.FriendRequestDirection
 import com.example.notepassingapp.data.model.FriendRequestState
 import com.example.notepassingapp.data.model.visibleAvatar
 import com.example.notepassingapp.data.model.visibleNickname
+import com.example.notepassingapp.data.repository.AlreadyFriendsException
+import com.example.notepassingapp.data.repository.FriendRequestAlreadyPendingException
 import com.example.notepassingapp.data.repository.RelationRepository
 import com.example.notepassingapp.data.repository.MessageRepository
 import com.example.notepassingapp.util.DeviceManager
@@ -46,6 +48,7 @@ class ChatViewModel(
     private val friendRequestDao = db.friendRequestDao()
     private val chatHistoryDao = db.chatHistoryDao()
     private val myDeviceId = DeviceManager.getDeviceId()
+    private val optimisticOutgoingPending = MutableStateFlow(false)
 
     private val _uiState = MutableStateFlow(ChatUiState(peerDeviceId = peerDeviceId))
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -65,10 +68,15 @@ class ChatViewModel(
             combine(
                 friendDao.observeByDeviceId(peerDeviceId),
                 chatHistoryDao.observeByDeviceId(peerDeviceId),
-                friendRequestDao.observeByPeer(peerDeviceId)
-            ) { friend, history, pendingRequest ->
-                Triple(friend, history, pendingRequest)
-            }.collect { (friend, history, pendingRequest) ->
+                friendRequestDao.observeByPeer(peerDeviceId),
+                optimisticOutgoingPending,
+            ) { friend, history, pendingRequest, hasOptimisticOutgoing ->
+                arrayOf(friend, history, pendingRequest, hasOptimisticOutgoing)
+            }.collect { values ->
+                val friend = values[0] as com.example.notepassingapp.data.local.entity.FriendEntity?
+                val history = values[1] as com.example.notepassingapp.data.local.entity.ChatHistoryEntity?
+                val pendingRequest = values[2] as com.example.notepassingapp.data.local.entity.FriendRequestEntity?
+                val hasOptimisticOutgoing = values[3] as Boolean
                 val isFriend = friend != null
                 val isAnonymous = history?.isAnonymous ?: false
                 val nickname = visibleNickname(
@@ -85,7 +93,12 @@ class ChatViewModel(
                     isFriend -> FriendRequestState.NONE
                     pendingRequest?.direction == FriendRequestDirection.OUTGOING -> FriendRequestState.OUTGOING_PENDING
                     pendingRequest?.direction == FriendRequestDirection.INCOMING -> FriendRequestState.INCOMING_PENDING
+                    hasOptimisticOutgoing -> FriendRequestState.OUTGOING_PENDING
                     else -> FriendRequestState.NONE
+                }
+
+                if (hasOptimisticOutgoing && (isFriend || pendingRequest?.direction == FriendRequestDirection.OUTGOING)) {
+                    optimisticOutgoingPending.value = false
                 }
 
                 _uiState.update {
@@ -174,11 +187,20 @@ class ChatViewModel(
             }
 
             val result = RelationRepository.sendFriendRequest(peerDeviceId)
+            val error = result.exceptionOrNull()
+
+            if (result.isSuccess || error is FriendRequestAlreadyPendingException) {
+                optimisticOutgoingPending.value = true
+            }
 
             _uiState.update {
                 it.copy(
                     isFriendActionLoading = false,
-                    friendStatusMessage = result.exceptionOrNull()?.message ?: it.friendStatusMessage
+                    friendStatusMessage = when (error) {
+                        is FriendRequestAlreadyPendingException -> error.message
+                        is AlreadyFriendsException -> error.message
+                        else -> error?.message ?: it.friendStatusMessage
+                    }
                 )
             }
         }

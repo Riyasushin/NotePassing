@@ -34,9 +34,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    upload_root = Path(settings.upload_root_dir)
+    upload_root = settings.upload_root_path
     upload_root.mkdir(parents=True, exist_ok=True)
-    Path(settings.avatar_upload_dir).mkdir(parents=True, exist_ok=True)
+    settings.avatar_upload_path.mkdir(parents=True, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory=str(upload_root)), name="uploads")
     
     # Include routers

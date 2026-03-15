@@ -9,6 +9,7 @@ data class NearbyUser(
     val nickname: String,
     val avatar: String? = null,
     val tags: List<String> = emptyList(),
+    val commonTags: List<String> = emptyList(),
     val profile: String = "",
     val isAnonymous: Boolean = false,
     val roleName: String? = null,
@@ -36,14 +37,22 @@ data class NearbyUser(
     val displayTags: List<String>
         get() = visibleTags(tags, isAnonymous, isFriend)
 
+    val displayCommonTags: List<String>
+        get() = visibleTags(commonTags, isAnonymous, isFriend)
+
+    val hasCommonTags: Boolean
+        get() = displayCommonTags.isNotEmpty()
+
     val displayProfile: String
         get() = visibleProfile(profile, isAnonymous, isFriend)
 
     val signalStrengthLabel: String
         get() = when {
-            rssi >= -60 -> "强"
-            rssi >= -75 -> "中"
-            else -> "弱"
+            state == NearbyState.EXPIRED -> "已超出距离"
+            rssi >= -55 -> "很近"
+            rssi >= -67 -> "近"
+            rssi >= -78 -> "中"
+            else -> "远"
         }
 
     val displayLastMessage: String?

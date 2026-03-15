@@ -1,12 +1,12 @@
 package com.example.notepassingapp.ui.friends
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -21,9 +21,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.notepassingapp.data.local.entity.FriendEntity
+import com.example.notepassingapp.ui.components.StatusPill
 import com.example.notepassingapp.ui.components.UserAvatar
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -37,32 +41,28 @@ fun FriendCard(
     onAvatarClick: () -> Unit,
     onDelete: () -> Unit = {}
 ) {
+    val style = friendCardStyle(friend)
+    val shape = RoundedCornerShape(16.dp)
     Card(
         modifier = Modifier
+            .then(
+                if (style.borderBrush != null) {
+                    Modifier.border(width = style.borderWidth, brush = style.borderBrush, shape = shape)
+                } else {
+                    Modifier
+                }
+            )
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = style.containerColor
         )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
         ) {
-            // Boost 高亮条：好友在附近时显示
-            if (friend.isNearby) {
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .fillMaxHeight()
-                        .background(
-                            MaterialTheme.colorScheme.primary,
-                            RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)
-                        )
-                )
-            }
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -85,16 +85,17 @@ fun FriendCard(
                         Text(
                             text = friend.nickname,
                             style = MaterialTheme.typography.titleMedium,
+                            color = style.titleColor,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
-                        if (friend.isNearby) {
+                        style.badgeText?.let { badgeText ->
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "附近",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
+                            StatusPill(
+                                text = badgeText,
+                                backgroundColor = style.badgeBackgroundColor,
+                                contentColor = Color.White,
                             )
                         }
                     }
@@ -103,7 +104,7 @@ fun FriendCard(
                         Text(
                             text = friend.profile,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = style.secondaryTextColor,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -116,21 +117,24 @@ fun FriendCard(
                         Text(
                             text = "遇见 ${friend.meetCount} 次",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
+                            color = style.accentColor
                         )
                     }
                     friend.lastChatAt?.let {
                         Text(
                             text = formatTime(it),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline
+                            color = style.secondaryTextColor
                         )
                     }
                     TextButton(
                         onClick = onDelete,
                         enabled = !isDeleting
                     ) {
-                        Text(if (isDeleting) "删除中" else "删除好友")
+                        Text(
+                            text = if (isDeleting) "删除中" else "删除好友",
+                            color = style.accentColor,
+                        )
                     }
                 }
             }
@@ -147,4 +151,36 @@ private fun formatTime(timestamp: Long): String {
         diff < 86400_000 -> "${diff / 3600_000}小时前"
         else -> SimpleDateFormat("MM/dd", Locale.getDefault()).format(Date(timestamp))
     }
+}
+
+private data class FriendCardStyle(
+    val containerColor: Color,
+    val borderBrush: Brush? = null,
+    val borderWidth: Dp = 0.dp,
+    val badgeText: String? = null,
+    val badgeBackgroundColor: Color = Color.Transparent,
+    val titleColor: Color,
+    val secondaryTextColor: Color,
+    val accentColor: Color,
+)
+
+@Composable
+private fun friendCardStyle(friend: FriendEntity): FriendCardStyle {
+    val whiteBackground = Color(0xFFFFFFFF)
+    val gold = Color(0xFFD7A63A)
+
+    return FriendCardStyle(
+        containerColor = whiteBackground,
+        borderBrush = if (friend.isNearby) {
+            Brush.linearGradient(listOf(gold, Color(0xFFF2D27A)))
+        } else {
+            null
+        },
+        borderWidth = if (friend.isNearby) 4.dp else 0.dp,
+        badgeText = if (friend.isNearby) "在附近" else null,
+        badgeBackgroundColor = if (friend.isNearby) gold else Color.Transparent,
+        titleColor = Color(0xFF15181C),
+        secondaryTextColor = Color(0xFF677281),
+        accentColor = if (friend.isNearby) gold else Color(0xFF6A7280),
+    )
 }

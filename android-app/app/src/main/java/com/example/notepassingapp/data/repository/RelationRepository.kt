@@ -18,6 +18,7 @@ import java.time.Instant
 object RelationRepository {
 
     private const val TAG = "RelationRepository"
+    private const val DUPLICATE_OPERATION_CODE = 4009
     private val gson = Gson()
     private val friendDao = NotePassingApp.instance.database.friendDao()
     private val friendRequestDao = NotePassingApp.instance.database.friendRequestDao()
@@ -125,6 +126,13 @@ object RelationRepository {
                     )
                 )
                 Result.success(response.data)
+            } else if (response.code == DUPLICATE_OPERATION_CODE) {
+                syncFriends()
+                if (friendDao.isFriend(receiverId)) {
+                    Result.failure(AlreadyFriendsException())
+                } else {
+                    Result.failure(FriendRequestAlreadyPendingException())
+                }
             } else {
                 Result.failure(Exception("${response.code}: ${response.message}"))
             }
@@ -313,3 +321,7 @@ object RelationRepository {
         }
     }
 }
+
+class FriendRequestAlreadyPendingException : Exception("好友申请已发送，等待对方处理")
+
+class AlreadyFriendsException : Exception("你们已经是好友")

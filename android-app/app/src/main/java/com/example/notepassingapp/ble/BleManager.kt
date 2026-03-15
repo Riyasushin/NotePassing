@@ -5,6 +5,8 @@ import android.util.Log
 import com.example.notepassingapp.NotePassingApp
 import com.example.notepassingapp.data.local.entity.ChatHistoryEntity
 import com.example.notepassingapp.data.remote.dto.ScannedDevice
+import com.example.notepassingapp.notifications.FriendReunionAlert
+import com.example.notepassingapp.notifications.FriendReunionNotifier
 import com.example.notepassingapp.notifications.TagMatchAlert
 import com.example.notepassingapp.notifications.TagMatchNotifier
 import com.example.notepassingapp.data.repository.PresenceRepository
@@ -33,6 +35,7 @@ object BleManager {
 
     private val bleFindMap = Collections.synchronizedMap(mutableMapOf<String, BleFoundDevice>())
     private val tagMatchSignatures = Collections.synchronizedMap(mutableMapOf<String, String>())
+    private val announcedTagMatchDeviceIds = Collections.synchronizedSet(mutableSetOf<String>())
     
     // Track which friends are currently nearby to handle leave events
     private val nearbyFriendIds = Collections.synchronizedSet(mutableSetOf<String>())
@@ -177,6 +180,7 @@ object BleManager {
         
         // Track current nearby friend IDs for this scan
         val currentNearbyFriendIds = mutableSetOf<String>()
+        val reunionAlerts = mutableListOf<FriendReunionAlert>()
 
         val resolved = result.nearbyDevices.map { dto ->
             val existing = chatHistoryDao.getByDeviceId(dto.deviceId)
@@ -204,7 +208,12 @@ object BleManager {
             // Update friends table for nearby friends
             if (dto.isFriend) {
                 currentNearbyFriendIds.add(dto.deviceId)
-                updateFriendNearbyStatus(friendDao, dto.deviceId, now)
+                if (updateFriendNearbyStatus(friendDao, dto.deviceId, now)) {
+                    reunionAlerts += FriendReunionAlert(
+                        deviceId = dto.deviceId,
+                        nickname = dto.nickname,
+                    )
+                }
             }
             
             val rssi = snapshot.find { it.tempId == dto.tempId }?.rssi ?: -100
@@ -234,6 +243,11 @@ object BleManager {
 
         handleTagMatchAlerts(resolved)
 
+        if (reunionAlerts.isNotEmpty()) {
+            FriendReunionNotifier.notify(NotePassingApp.instance, reunionAlerts)
+            Log.d(TAG, "Friend reunion alerts: ${reunionAlerts.size}")
+        }
+
         val boostIds = result.boostAlerts.map { it.deviceId }
         _nearbyUpdate.tryEmit(NearbyUpdateEvent(resolved, boostIds, leftFriends))
         Log.d(TAG, "Resolved ${resolved.size} devices, ${boostIds.size} boosts, ${leftFriends.size} friends left")
@@ -249,7 +263,7 @@ object BleManager {
     /**
      * Update friend's nearby status and increment meet count if newly nearby
      */
-    private suspend fun updateFriendNearbyStatus(friendDao: com.example.notepassingapp.data.local.dao.FriendDao, friendId: String, now: Long) {
+    private suspend fun updateFriendNearbyStatus(friendDao: com.example.notepassingapp.data.local.dao.FriendDao, friendId: String, now: Long): Boolean {
         val wasNearby = nearbyFriendIds.contains(friendId)
         if (!wasNearby) {
             // Friend newly came into range - update isNearby and increment meetCount
@@ -257,7 +271,9 @@ object BleManager {
             friendDao.incrementMeetCount(friendId)
             nearbyFriendIds.add(friendId)
             Log.d(TAG, "Friend came into range: $friendId, meetCount incremented")
+            return true
         }
+        return false
     }
     
     /**
@@ -300,12 +316,14 @@ object BleManager {
             staleIds.forEach(tagMatchSignatures::remove)
 
             val newAlerts = activeAlerts.filter { alert ->
-                tagMatchSignatures[alert.deviceId] != activeSignatures[alert.deviceId]
+                alert.deviceId !in announcedTagMatchDeviceIds &&
+                    tagMatchSignatures[alert.deviceId] != activeSignatures[alert.deviceId]
             }
             if (newAlerts.isEmpty()) return
 
             newAlerts.forEach { alert ->
                 tagMatchSignatures[alert.deviceId] = activeSignatures.getValue(alert.deviceId)
+                announcedTagMatchDeviceIds.add(alert.deviceId)
             }
 
             TagMatchNotifier.notify(NotePassingApp.instance, newAlerts)

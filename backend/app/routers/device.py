@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_db
 from app.schemas.device import (
     DeviceInitRequest,
@@ -11,6 +12,23 @@ from app.services.device_service import DeviceService
 from app.utils.response import success_response
 
 router = APIRouter(prefix="/device", tags=["Device"])
+settings = get_settings()
+
+
+def _resolve_public_base_url(request: Request) -> str:
+    configured_base = (settings.public_base_url or "").strip().rstrip("/")
+    if configured_base:
+        return configured_base
+
+    forwarded_proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "http")
+    forwarded_proto = forwarded_proto.split(",", 1)[0].strip()
+
+    forwarded_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    if forwarded_host:
+        host = forwarded_host.split(",", 1)[0].strip()
+        return f"{forwarded_proto}://{host}"
+
+    return str(request.base_url).rstrip("/")
 
 
 @router.post("/init", response_model=dict)
@@ -78,6 +96,6 @@ async def upload_avatar(
         filename=file.filename,
         content_type=file.content_type,
         content=content,
-        public_base_url=str(request.base_url),
+        public_base_url=_resolve_public_base_url(request),
     )
     return success_response(data=result.model_dump())

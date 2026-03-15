@@ -410,6 +410,11 @@ class TestDeviceEndpoints:
         assert data["code"] == 0
         assert data["data"]["avatar_url"].startswith("http://test/uploads/avatars/")
 
+        avatar_path = data["data"]["avatar_url"].removeprefix("http://test")
+        avatar_response = await client.get(avatar_path)
+        assert avatar_response.status_code == 200
+        assert avatar_response.content == b"fake-image-bytes"
+
         profile_response = await client.get(f"/api/v1/device/{device_id}?requester_id={device_id}")
         profile_data = profile_response.json()
         assert profile_data["data"]["avatar"] == data["data"]["avatar_url"]

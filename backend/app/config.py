@@ -1,4 +1,5 @@
 """Application settings."""
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
@@ -23,6 +24,7 @@ class Settings(BaseSettings):
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
+    public_base_url: str | None = None
 
     # Local media upload settings
     upload_root_dir: str = "uploads"
@@ -35,6 +37,24 @@ class Settings(BaseSettings):
     
     # Presence settings
     boost_cooldown_minutes: int = 5
+
+    @property
+    def backend_root_path(self) -> Path:
+        return Path(__file__).resolve().parents[1]
+
+    @property
+    def upload_root_path(self) -> Path:
+        path = Path(self.upload_root_dir)
+        if path.is_absolute():
+            return path.resolve()
+        return (self.backend_root_path / path).resolve()
+
+    @property
+    def avatar_upload_path(self) -> Path:
+        path = Path(self.avatar_upload_dir)
+        if path.is_absolute():
+            return path.resolve()
+        return (self.backend_root_path / path).resolve()
 
 
 @lru_cache

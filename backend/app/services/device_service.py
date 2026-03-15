@@ -278,7 +278,7 @@ class DeviceService:
         if not device:
             raise DeviceNotInitializedError()
 
-        upload_dir = Path(settings.avatar_upload_dir)
+        upload_dir = settings.avatar_upload_path
         upload_dir.mkdir(parents=True, exist_ok=True)
 
         avatar_name = f"{device_id}_{generate_uuid()}{extension}"

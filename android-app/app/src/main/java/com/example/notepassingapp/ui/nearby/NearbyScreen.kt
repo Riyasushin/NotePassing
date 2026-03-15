@@ -5,19 +5,26 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notepassingapp.ble.BleManager
-import com.example.notepassingapp.notifications.TagMatchNotifier
 import com.example.notepassingapp.ui.components.ProfileDetailDialog
 import com.example.notepassingapp.ui.components.ProfilePreviewData
 
@@ -30,8 +37,8 @@ fun NearbyScreen(
     val bleState by viewModel.bleState.collectAsState()
     val processingRequestIds by viewModel.processingRequestIds.collectAsState()
     val processingBlockIds by viewModel.processingBlockIds.collectAsState()
+    val tagMatchCards by viewModel.tagMatchCards.collectAsState()
     val context = LocalContext.current
-    val snackbarHostState = remember { SnackbarHostState() }
     var pendingBlockUser by remember { mutableStateOf<com.example.notepassingapp.data.model.NearbyUser?>(null) }
     var selectedProfile by remember { mutableStateOf<ProfilePreviewData?>(null) }
 
@@ -43,18 +50,17 @@ fun NearbyScreen(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         permissionsGranted = results.values.all { it }
-        if (permissionsGranted) {
-            viewModel.startBle()
-        }
     }
 
-    LaunchedEffect(snackbarHostState) {
-        BleManager.tagMatchAlerts.collect { alerts ->
-            snackbarHostState.showSnackbar(TagMatchNotifier.buildMessage(alerts))
-        }
+    LaunchedEffect(permissionsGranted) {
+        viewModel.ensureBleRunningWhenReady(permissionsGranted)
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF2F4F5))
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -148,12 +154,6 @@ fun NearbyScreen(
             }
         }
 
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(16.dp)
-        )
     }
 
     pendingBlockUser?.let { user ->
@@ -183,6 +183,16 @@ fun NearbyScreen(
         ProfileDetailDialog(
             preview = preview,
             onDismiss = { selectedProfile = null },
+        )
+    }
+
+    tagMatchCards.firstOrNull()?.let { card ->
+        TagMatchFloatingCard(
+            card = card,
+            queueSize = tagMatchCards.size,
+            onOpenChat = onUserClick,
+            onIgnore = { viewModel.ignoreCurrentTagMatch() },
+            onCloseAll = { viewModel.clearAllTagMatches() },
         )
     }
 }

@@ -12,7 +12,16 @@ import com.example.notepassingapp.data.local.entity.FriendRequestDirection
 import com.example.notepassingapp.data.model.FriendRequestState
 import com.example.notepassingapp.data.model.NearbyState
 import com.example.notepassingapp.data.model.NearbyUser
+import com.example.notepassingapp.data.model.shouldHideIdentity
+import com.example.notepassingapp.data.model.visibleAvatar
+import com.example.notepassingapp.data.model.visibleNickname
+import com.example.notepassingapp.data.model.visibleProfile
+import com.example.notepassingapp.data.model.visibleTags
+import com.example.notepassingapp.notifications.TagMatchAlert
+import com.example.notepassingapp.data.repository.FriendRequestAlreadyPendingException
 import com.example.notepassingapp.data.repository.RelationRepository
+import com.example.notepassingapp.ui.components.ProfilePreviewData
+import com.example.notepassingapp.util.DeviceManager
 import com.example.notepassingapp.util.TagSerializer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -27,10 +36,14 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
     private val _realtimeStates = MutableStateFlow<Map<String, RealtimeState>>(emptyMap())
     private val _processingRequestIds = MutableStateFlow<Set<String>>(emptySet())
     private val _processingBlockIds = MutableStateFlow<Set<String>>(emptySet())
+    private val _tagMatchCards = MutableStateFlow<List<TagMatchCardUiState>>(emptyList())
+    private val _optimisticOutgoingRequestIds = MutableStateFlow<Set<String>>(emptySet())
+    private var hasTriedAutoStart = false
 
     val bleState = BleManager.state
     val processingRequestIds: StateFlow<Set<String>> = _processingRequestIds.asStateFlow()
     val processingBlockIds: StateFlow<Set<String>> = _processingBlockIds.asStateFlow()
+    val tagMatchCards: StateFlow<List<TagMatchCardUiState>> = _tagMatchCards.asStateFlow()
 
     data class RealtimeState(
         val state: NearbyState = NearbyState.ACTIVE,
@@ -41,23 +54,27 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         observeBleUpdates()
+        observeTagMatchAlerts()
         startGraceExpiryTicker()
     }
 
     val nearbyUsers: StateFlow<List<NearbyUser>> = combine(
         chatHistoryDao.getAllExcludeBlocked(),
         _realtimeStates,
-        friendRequestDao.getAll()
-    ) { historyList, states, pendingRequests ->
+        friendRequestDao.getAll(),
+        _optimisticOutgoingRequestIds,
+    ) { historyList, states, pendingRequests, optimisticOutgoingRequestIds ->
             val pendingByPeer = pendingRequests.associateBy { it.peerDeviceId }
             historyList
                 .map { entity ->
                     entity.toNearbyUser(
                         rt = states[entity.deviceId],
-                        friendRequestState = pendingByPeer[entity.deviceId].toFriendRequestState(entity.isFriend)
+                        friendRequestState = pendingByPeer[entity.deviceId].toFriendRequestState(
+                            isFriend = entity.isFriend,
+                            hasOptimisticOutgoing = entity.deviceId in optimisticOutgoingRequestIds,
+                        )
                     )
                 }
-                .filter { it.state != NearbyState.EXPIRED }
                 .sortedWith(nearbyComparator())
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -113,6 +130,24 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
                 // Mark sessions as expired for non-friends who entered EXPIRED state
                 if (newlyExpiredNonFriends.isNotEmpty()) {
                     markNonFriendSessionsExpired(newlyExpiredNonFriends)
+                }
+            }
+        }
+    }
+
+    private fun observeTagMatchAlerts() {
+        viewModelScope.launch {
+            BleManager.tagMatchAlerts.collect { alerts ->
+                val cards = buildList {
+                    alerts.forEach { alert ->
+                        buildTagMatchCard(alert)?.let(::add)
+                    }
+                }
+                if (cards.isEmpty()) return@collect
+
+                _tagMatchCards.update { existing ->
+                    val existingIds = existing.map { it.deviceId }.toSet()
+                    existing + cards.filter { it.deviceId !in existingIds }
                 }
             }
         }
@@ -174,11 +209,19 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun startBle() {
+        hasTriedAutoStart = true
         BleForegroundService.start(getApplication())
     }
 
     fun stopBle() {
+        hasTriedAutoStart = true
         BleForegroundService.stop(getApplication())
+    }
+
+    fun ensureBleRunningWhenReady(hasPermissions: Boolean) {
+        if (!hasPermissions || bleState.value.running || hasTriedAutoStart) return
+        hasTriedAutoStart = true
+        BleForegroundService.start(getApplication())
     }
 
     fun sendFriendRequest(user: NearbyUser) {
@@ -189,7 +232,13 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
             _processingRequestIds.update { it + user.deviceId }
             try {
                 val result = RelationRepository.sendFriendRequest(user.deviceId)
-                result.exceptionOrNull()?.let { error ->
+                val error = result.exceptionOrNull()
+
+                if (error is FriendRequestAlreadyPendingException) {
+                    _optimisticOutgoingRequestIds.update { it + user.deviceId }
+                }
+
+                error?.let {
                     Log.e("NearbyViewModel", "Failed to send friend request to ${user.deviceId}", error)
                 }
             } finally {
@@ -212,6 +261,16 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
                 _processingBlockIds.update { it - user.deviceId }
             }
         }
+    }
+
+    fun ignoreCurrentTagMatch() {
+        _tagMatchCards.update { current ->
+            if (current.isEmpty()) current else current.drop(1)
+        }
+    }
+
+    fun clearAllTagMatches() {
+        _tagMatchCards.value = emptyList()
     }
 
     private fun nearbyComparator(): Comparator<NearbyUser> = compareBy<NearbyUser> { user ->
@@ -246,6 +305,7 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
             nickname = nickname,
             avatar = avatar,
             tags = TagSerializer.decode(tags),
+            commonTags = TagSerializer.findCommonTags(DeviceManager.getTags(), TagSerializer.decode(tags)),
             profile = profile,
             isAnonymous = isAnonymous,
             roleName = roleName,
@@ -261,14 +321,47 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
+    private suspend fun buildTagMatchCard(alert: TagMatchAlert): TagMatchCardUiState? {
+        val history = chatHistoryDao.getByDeviceId(alert.deviceId)
+        if (history == null) {
+            return TagMatchCardUiState(
+                deviceId = alert.deviceId,
+                preview = ProfilePreviewData(
+                    avatarUrl = null,
+                    nickname = alert.nickname,
+                    profile = "",
+                    tags = emptyList(),
+                    isFriend = false,
+                    isIdentityHidden = false,
+                ),
+                commonTags = alert.commonTags,
+            )
+        }
+
+        val isIdentityHidden = shouldHideIdentity(history.isAnonymous, history.isFriend)
+        return TagMatchCardUiState(
+            deviceId = alert.deviceId,
+            preview = ProfilePreviewData(
+                avatarUrl = visibleAvatar(history.avatar, history.isAnonymous, history.isFriend),
+                nickname = visibleNickname(history.nickname, history.isAnonymous, history.isFriend),
+                profile = visibleProfile(history.profile, history.isAnonymous, history.isFriend),
+                tags = visibleTags(TagSerializer.decode(history.tags), history.isAnonymous, history.isFriend),
+                isFriend = history.isFriend,
+                isIdentityHidden = isIdentityHidden,
+            ),
+            commonTags = if (isIdentityHidden) emptyList() else alert.commonTags,
+        )
+    }
+
     private fun com.example.notepassingapp.data.local.entity.FriendRequestEntity?.toFriendRequestState(
-        isFriend: Boolean
+        isFriend: Boolean,
+        hasOptimisticOutgoing: Boolean = false,
     ): FriendRequestState {
         if (isFriend) return FriendRequestState.NONE
         return when (this?.direction) {
             FriendRequestDirection.OUTGOING -> FriendRequestState.OUTGOING_PENDING
             FriendRequestDirection.INCOMING -> FriendRequestState.INCOMING_PENDING
-            else -> FriendRequestState.NONE
+            else -> if (hasOptimisticOutgoing) FriendRequestState.OUTGOING_PENDING else FriendRequestState.NONE
         }
     }
 
