@@ -4,7 +4,7 @@
 
 Ŀ��Ч����
 
-- ������ҳ��Ȼʹ�� `http://39.102.97.149:8000/`
+- ������ҳ��Ȼʹ�� `http://39.105.30.179:8000/`
 - ��ҳ��ʾ����ͼ��վ
 - ԭ���� NotePassing ��� API ��������
 - ���޸�ԭ��Ŀ�ṹ��ֻ����������վ��Ŀ��ͨ�� Nginx ת��
@@ -17,24 +17,24 @@
 /root/NotePassing
 ```
 
-����Ŀ¼���Ѿ��У�
+并且目录里已经有：
 
 ```bash
 /root/NotePassing/backend
 /root/NotePassing/network_site
 ```
 
-��������Ŀ�������Ŀ¼��������ű���ģ�
+如果你的项目不在这个目录，把下面脚本里的：
 
 ```bash
 PROJECT_DIR="/root/NotePassing"
 ```
 
-�ĳ����Լ���ʵ��·����
+改成你自己的实际路径。
 
-## һ������
+## 一键部署
 
-SSH ��¼��� Linux ��������ֱ�Ӹ�����������ִ�У�
+SSH 登录你的 Linux 服务器后，直接复制下面整段执行：
 
 ```bash
 sudo bash <<'BASH'
@@ -44,14 +44,14 @@ PROJECT_DIR="/root/NotePassing"
 SERVER_IP="39.102.97.149"
 
 if [ ! -d "$PROJECT_DIR/backend" ] || [ ! -d "$PROJECT_DIR/network_site" ]; then
-  echo "��ĿĿ¼���ԡ���ȷ��������Ŀ¼���ڣ�"
+  echo "项目目录不对。请确认这两个目录存在："
   echo "  $PROJECT_DIR/backend"
   echo "  $PROJECT_DIR/network_site"
   exit 1
 fi
 
 if [ ! -f "$PROJECT_DIR/backend/.env" ]; then
-  echo "ȱ�� $PROJECT_DIR/backend/.env"
+  echo "缺少 $PROJECT_DIR/backend/.env"
   exit 1
 fi
 
@@ -60,7 +60,7 @@ apt-get install -y nginx python3 python3-venv python3-pip psmisc
 
 DB_URL="$(grep '^DATABASE_URL=' "$PROJECT_DIR/backend/.env" | head -n1 | cut -d= -f2-)"
 if [ -z "$DB_URL" ]; then
-  echo "û���� $PROJECT_DIR/backend/.env ���ҵ� DATABASE_URL"
+  echo "没有在 $PROJECT_DIR/backend/.env 里找到 DATABASE_URL"
   exit 1
 fi
 
@@ -205,9 +205,9 @@ if command -v ufw >/dev/null 2>&1; then
 fi
 
 echo
-echo "������ɡ�"
-echo "��ҳ: http://$SERVER_IP:8000/"
-echo "��˽������: http://$SERVER_IP:8000/api-health"
+echo "部署完成。"
+echo "主页: http://$SERVER_IP:8000/"
+echo "后端健康检查: http://$SERVER_IP:8000/api-health"
 echo
 systemctl --no-pager --full status notepassing-backend.service | sed -n '1,12p'
 echo
@@ -217,25 +217,25 @@ systemctl --no-pager --full status nginx.service | sed -n '1,12p'
 BASH
 ```
 
-## ������ɺ���ô���
+## 部署完成后怎么检查
 
-������򿪣�
+浏览器打开：
 
 ```bash
 http://39.102.97.149:8000/
 ```
 
-�����ҳ�ܴ򿪣�˵����վ��������
+如果首页能打开，说明网站已启动。
 
-�ٴ򿪣�
+再打开：
 
 ```bash
 http://39.102.97.149:8000/api-health
 ```
 
-�����������״̬��˵�����Ҳ������
+如果看到健康状态，说明后端也正常。
 
-## ƽʱ��������
+## 平时重启命令
 
 ```bash
 sudo systemctl restart notepassing-backend
@@ -243,7 +243,7 @@ sudo systemctl restart notepassing-network-site
 sudo systemctl restart nginx
 ```
 
-## ƽʱ�鿴����״̬
+## 平时查看运行状态
 
 ```bash
 sudo systemctl status notepassing-backend
@@ -251,72 +251,72 @@ sudo systemctl status notepassing-network-site
 sudo systemctl status nginx
 ```
 
-## �鿴������־
+## 查看报错日志
 
 ```bash
 sudo journalctl -u notepassing-network-site -n 100 --no-pager
 sudo journalctl -u notepassing-backend -n 100 --no-pager
 ```
 
-## �������ʧ�ܣ������ԭ��
+## 如果部署失败，最常见的原因
 
-### 1. ��ĿĿ¼����
+### 1. 项目目录不对
 
-�����ʾ��
+如果提示：
 
 ```bash
-��ĿĿ¼����
+项目目录不对
 ```
 
-�Ͱѽű���ģ�
+就把脚本里的：
 
 ```bash
 PROJECT_DIR="/root/NotePassing"
 ```
 
-�ĳ���������ϵ���ʵ·����
+改成你服务器上的真实路径。
 
-### 2. ��� `.env` ������
+### 2. 后端 `.env` 不存在
 
-�����ʾ��
-
-```bash
-ȱ�� /root/NotePassing/backend/.env
-```
-
-˵����ԭ��˵Ļ��������ļ���û�źã���Ҫ�Ȱ������ϡ�
-
-### 3. ���ݿ����Ӵ�û�ҵ�
-
-�����ʾ��
+如果提示：
 
 ```bash
-û���� backend/.env ���ҵ� DATABASE_URL
+缺少 /root/NotePassing/backend/.env
 ```
 
-˵������Ҫ�ڣ�
+说明你原后端的环境变量文件还没放好，需要先把它补上。
+
+### 3. 数据库连接串没找到
+
+如果提示：
+
+```bash
+没有在 backend/.env 里找到 DATABASE_URL
+```
+
+说明你需要在：
 
 ```bash
 /root/NotePassing/backend/.env
 ```
 
-����ϣ�
+里加上：
 
 ```bash
-DATABASE_URL=������ݿ����Ӵ�
+DATABASE_URL=你的数据库连接串
 ```
 
-### 4. 8000 �˿ڱ���ĳ���ռ��
+### 4. 8000 端口被别的程序占用
 
-�ű����Ѿ����Զ������ͷ� `8000`��������������⣬����ִ�У�
+脚本里已经会自动尝试释放 `8000`，但如果还有问题，可以执行：
 
 ```bash
 sudo fuser -k 8000/tcp
 sudo systemctl restart nginx
 ```
 
-## �ļ�λ��
+## 文件位置
 
-��ݲ����ĵ��ļ��ڣ�
+这份部署文档文件在：
 
 [DEPLOY_README_CN.md](/D:/User/projects/NotePassing/network_site/DEPLOY_README_CN.md)

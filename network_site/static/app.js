@@ -28,16 +28,16 @@ function setText(id, value) {
 }
 
 function formatTime(iso) {
-  if (!iso) return "ÔİÎŞ";
+  if (!iso) return "æš‚æ— ";
   const time = new Date(iso);
   return time.toLocaleString("zh-CN", { hour12: false });
 }
 
 function updateSummary(payload) {
-  setText("generatedAt", `×îºó¸üĞÂ ${formatTime(payload.generated_at)}`);
+  setText("generatedAt", `æœ€åæ›´æ–° ${formatTime(payload.generated_at)}`);
   setText(
     "windowLabel",
-    `À¶ÑÀ´°¿Ú ${payload.windows.presence_seconds}s / ÏûÏ¢´°¿Ú ${payload.windows.message_minutes}min`
+    `è“ç‰™çª—å£ ${payload.windows.presence_seconds}s / æ¶ˆæ¯çª—å£ ${payload.windows.message_minutes}min`
   );
   setText("broadcastingDevices", payload.stats.broadcasting_devices);
   setText("bluetoothActiveDevices", payload.stats.bluetooth_active_devices);
@@ -56,10 +56,10 @@ function updateHighlights(items) {
     const fragment = tpl.content.cloneNode(true);
     fragment.querySelector(".highlight-name").textContent = item.label;
     fragment.querySelector(".highlight-meta").textContent =
-      `Á¬½Ó¶È ${item.degree} / ºÃÓÑ ${item.friend_degree}`;
+      `è¿æ¥åº¦ ${item.degree} / å¥½å‹ ${item.friend_degree}`;
     fragment.querySelector(".highlight-badge").textContent = item.is_broadcasting
-      ? "¹ã²¥ÖĞ"
-      : "¾²Ä¬";
+      ? "å¹¿æ’­ä¸­"
+      : "é™é»˜";
     wrap.appendChild(fragment);
   });
 }
@@ -202,7 +202,7 @@ async function refresh() {
       state.refreshTimer = setInterval(refresh, (payload.refresh_seconds || 5) * 1000);
     }
   } catch (error) {
-    setText("generatedAt", `Êı¾İ¶ÁÈ¡Ê§°Ü: ${error.message}`);
+    setText("generatedAt", `æ•°æ®è¯»å–å¤±è´¥: ${error.message}`);
   }
 }
 
