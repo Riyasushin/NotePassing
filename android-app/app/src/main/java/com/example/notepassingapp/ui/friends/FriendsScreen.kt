@@ -29,13 +29,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notepassingapp.data.local.entity.FriendEntity
 import com.example.notepassingapp.data.local.entity.FriendRequestEntity
 import com.example.notepassingapp.ui.components.ProfileDetailDialog
 import com.example.notepassingapp.ui.components.ProfilePreviewData
+import com.example.notepassingapp.ui.theme.AppBackgroundWhite
 import com.example.notepassingapp.util.TagSerializer
 
 @Composable
@@ -57,12 +57,13 @@ fun FriendsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(AppBackgroundWhite)
             .padding(horizontal = 16.dp)
     ) {
         Text(
             text = "好友",
             style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
         )
 

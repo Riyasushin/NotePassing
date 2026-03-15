@@ -19,12 +19,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notepassingapp.ble.BleManager
+import com.example.notepassingapp.ui.theme.AppBackgroundGray
 import com.example.notepassingapp.ui.components.ProfileDetailDialog
 import com.example.notepassingapp.ui.components.ProfilePreviewData
 
@@ -59,7 +59,7 @@ fun NearbyScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF2F4F5))
+            .background(AppBackgroundGray)
     ) {
         Column(
             modifier = Modifier
@@ -69,6 +69,7 @@ fun NearbyScreen(
             Text(
                 text = "附近",
                 style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
             )
 
