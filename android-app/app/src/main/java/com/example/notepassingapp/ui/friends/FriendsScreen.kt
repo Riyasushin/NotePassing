@@ -84,11 +84,6 @@ fun FriendsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.outline
                     )
-                    // 测试用按钮，后续删除
-                    Spacer(modifier = Modifier.height(24.dp))
-                    OutlinedButton(onClick = { viewModel.insertTestFriends() }) {
-                        Text("插入测试好友")
-                    }
                 }
             }
         } else {
@@ -146,13 +141,6 @@ fun FriendsScreen(
                         },
                         onDelete = { pendingDeleteFriend = friend }
                     )
-                }
-                if (friends.isNotEmpty()) {
-                    item {
-                        OutlinedButton(onClick = { viewModel.clearTestFriends() }) {
-                            Text("清除测试数据")
-                        }
-                    }
                 }
             }
         }

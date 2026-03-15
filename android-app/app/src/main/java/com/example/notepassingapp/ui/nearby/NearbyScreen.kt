@@ -19,14 +19,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notepassingapp.ble.BleManager
-import com.example.notepassingapp.ui.theme.AppBackgroundGray
 import com.example.notepassingapp.ui.components.ProfileDetailDialog
 import com.example.notepassingapp.ui.components.ProfilePreviewData
+
+private val NearbyScreenBackground = Color(0xFF20252B)
+private val NearbyScreenTitleColor = Color(0xFFF3F5F7)
+private val NearbyScreenSubtitleColor = Color(0xFFBCC5CE)
 
 @Composable
 fun NearbyScreen(
@@ -59,7 +63,7 @@ fun NearbyScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppBackgroundGray)
+            .background(NearbyScreenBackground)
     ) {
         Column(
             modifier = Modifier
@@ -69,7 +73,7 @@ fun NearbyScreen(
             Text(
                 text = "附近",
                 style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = NearbyScreenTitleColor,
                 modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
             )
 
@@ -96,17 +100,13 @@ fun NearbyScreen(
                         Text(
                             text = "附近暂无用户",
                             style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = NearbyScreenTitleColor
                         )
                         Text(
                             text = "打开蓝牙，发现身边的人",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.outline
+                            color = NearbyScreenSubtitleColor
                         )
-                        Spacer(modifier = Modifier.height(24.dp))
-                        OutlinedButton(onClick = { viewModel.insertTestData() }) {
-                            Text("插入测试数据")
-                        }
                     }
                 }
             } else {
@@ -139,11 +139,8 @@ fun NearbyScreen(
                     }
                     if (nearbyUsers.isNotEmpty()) {
                         item {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(onClick = { viewModel.clearTestData() }) {
-                                    Text("清除测试数据")
-                                }
-                                if (bleState.running) {
+                            if (bleState.running) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     OutlinedButton(onClick = { viewModel.stopBle() }) {
                                         Text("停止 BLE")
                                     }

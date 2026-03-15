@@ -138,12 +138,15 @@ class ChatViewModel(
         viewModelScope.launch {
             RelationRepository.syncFriends()
 
-            // 需要先知道 sessionId —— 从已有消息中获取
+            val history = chatHistoryDao.getByDeviceId(peerDeviceId)
+            val friend = friendDao.getByDeviceId(peerDeviceId)
             val existingMessages = messages.value
-            val sessionId = existingMessages.firstOrNull { it.sessionId != "pending" }?.sessionId
+            val sessionId = history?.sessionId
+                ?: friend?.sessionId
+                ?: existingMessages.firstOrNull { it.sessionId != "pending" }?.sessionId
             if (sessionId != null) {
                 try {
-                    val count = MessageRepository.syncSessionMessages(sessionId)
+                    val count = MessageRepository.syncSessionMessages(sessionId, peerDeviceId)
                     if (count > 0) {
                         Log.d("ChatViewModel", "Synced $count messages for session $sessionId")
                     }

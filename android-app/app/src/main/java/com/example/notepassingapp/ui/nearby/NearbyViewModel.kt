@@ -30,6 +30,8 @@ import kotlinx.coroutines.launch
 
 class NearbyViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val legacyTestNearbyIds = listOf("nearby-001", "nearby-002", "nearby-003", "nearby-004")
+
     private val chatHistoryDao = NotePassingApp.instance.database.chatHistoryDao()
     private val friendRequestDao = NotePassingApp.instance.database.friendRequestDao()
 
@@ -53,6 +55,7 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
     )
 
     init {
+        purgeLegacyTestNearbyUsers()
         observeBleUpdates()
         observeTagMatchAlerts()
         startGraceExpiryTicker()
@@ -159,6 +162,13 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
                 delay(1000)
                 expireGraceUsers()
             }
+        }
+    }
+
+    private fun purgeLegacyTestNearbyUsers() {
+        viewModelScope.launch {
+            legacyTestNearbyIds.forEach { chatHistoryDao.delete(it) }
+            _realtimeStates.update { current -> current - legacyTestNearbyIds.toSet() }
         }
     }
 
@@ -362,74 +372,6 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
             FriendRequestDirection.OUTGOING -> FriendRequestState.OUTGOING_PENDING
             FriendRequestDirection.INCOMING -> FriendRequestState.INCOMING_PENDING
             else -> if (hasOptimisticOutgoing) FriendRequestState.OUTGOING_PENDING else FriendRequestState.NONE
-        }
-    }
-
-    // ---- 测试用，后续删除 ----
-    fun insertTestData() {
-        viewModelScope.launch {
-            val now = System.currentTimeMillis()
-            val testUsers = listOf(
-                ChatHistoryEntity(
-                    deviceId = "nearby-001",
-                    nickname = "小红",
-                    tags = TagSerializer.encode(listOf("摄影", "咖啡")),
-                    profile = "喜欢画画",
-                    isFriend = true,
-                    lastSeenAt = now,
-                    firstSeenAt = now - 600_000,
-                    lastMessage = "你好呀！",
-                    lastMessageAt = now - 120_000
-                ),
-                ChatHistoryEntity(
-                    deviceId = "nearby-002",
-                    nickname = "路人甲",
-                    tags = TagSerializer.encode(listOf("徒步", "摄影")),
-                    profile = "路过的旅行者",
-                    isFriend = false,
-                    lastSeenAt = now,
-                    firstSeenAt = now - 300_000
-                ),
-                ChatHistoryEntity(
-                    deviceId = "nearby-003",
-                    nickname = "老王",
-                    tags = TagSerializer.encode(listOf("编程", "桌游")),
-                    profile = "隔壁的程序员",
-                    isFriend = true,
-                    lastSeenAt = now - 30_000,
-                    firstSeenAt = now - 900_000,
-                    lastMessage = "下次见",
-                    lastMessageAt = now - 35_000
-                ),
-                ChatHistoryEntity(
-                    deviceId = "nearby-004",
-                    nickname = "神秘人",
-                    tags = TagSerializer.encode(listOf("夜跑")),
-                    profile = "",
-                    isAnonymous = true,
-                    roleName = "夜行者",
-                    isFriend = false,
-                    lastSeenAt = now - 45_000,
-                    firstSeenAt = now - 200_000
-                )
-            )
-            testUsers.forEach { chatHistoryDao.insertOrReplace(it) }
-
-            _realtimeStates.value = mapOf(
-                "nearby-001" to RealtimeState(NearbyState.ACTIVE, rssi = -55, distanceEstimate = 1.5f),
-                "nearby-002" to RealtimeState(NearbyState.ACTIVE, rssi = -72, distanceEstimate = 5f),
-                "nearby-003" to RealtimeState(NearbyState.GRACE, rssi = -80, leftAt = now - 30_000),
-                "nearby-004" to RealtimeState(NearbyState.GRACE, rssi = -85, leftAt = now - 45_000)
-            )
-        }
-    }
-
-    fun clearTestData() {
-        viewModelScope.launch {
-            listOf("nearby-001", "nearby-002", "nearby-003", "nearby-004").forEach {
-                chatHistoryDao.delete(it)
-            }
-            _realtimeStates.value = emptyMap()
         }
     }
 }

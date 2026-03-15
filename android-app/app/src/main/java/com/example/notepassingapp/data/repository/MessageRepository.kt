@@ -2,14 +2,17 @@ package com.example.notepassingapp.data.repository
 
 import android.util.Log
 import com.example.notepassingapp.NotePassingApp
+import com.example.notepassingapp.data.local.entity.ChatHistoryEntity
 import com.example.notepassingapp.data.local.entity.MessageEntity
 import com.example.notepassingapp.data.remote.ApiClient
 import com.example.notepassingapp.data.remote.dto.SendMessageRequest
 import com.example.notepassingapp.util.DeviceManager
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.TimeZone
 import java.util.UUID
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 /**
  * 消息仓库：WebSocket 优先发送，失败时降级到 HTTP。
@@ -20,10 +23,7 @@ object MessageRepository {
     private const val TAG = "MessageRepository"
     private val messageDao = NotePassingApp.instance.database.messageDao()
     private val chatHistoryDao = NotePassingApp.instance.database.chatHistoryDao()
-
-    private val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply {
-        timeZone = TimeZone.getTimeZone("UTC")
-    }
+    private val friendDao = NotePassingApp.instance.database.friendDao()
 
     /**
      * 发送消息：先存本地 → WS 优先 / HTTP 降级。
@@ -59,12 +59,20 @@ object MessageRepository {
             val response = ApiClient.messageApi.sendMessage(request)
             if (response.isSuccess) {
                 val data = response.data!!
+                val createdAtMillis = parseIsoToMillis(data.createdAt)
                 messageDao.delete(localMsgId)
                 messageDao.insert(entity.copy(
                     messageId = data.messageId,
                     sessionId = data.sessionId,
-                    status = data.status
+                    status = data.status,
+                    createdAt = createdAtMillis
                 ))
+                upsertConversationState(
+                    peerDeviceId = peerDeviceId,
+                    sessionId = data.sessionId,
+                    content = content,
+                    messageAtMillis = createdAtMillis,
+                )
                 Log.d(TAG, "Sent via HTTP: msgId=${data.messageId}")
                 true
             } else {
@@ -84,7 +92,7 @@ object MessageRepository {
     suspend fun syncAllMessages(): Int {
         val myDeviceId = DeviceManager.getDeviceId()
         val latestTs = messageDao.getLatestReceivedTimestamp(myDeviceId) ?: 0L
-        val afterIso = if (latestTs > 0) isoFormat.format(latestTs) else "2000-01-01T00:00:00"
+        val afterIso = if (latestTs > 0) Instant.ofEpochMilli(latestTs).toString() else "2000-01-01T00:00:00Z"
 
         return try {
             val response = ApiClient.messageApi.syncMessages(
@@ -110,11 +118,15 @@ object MessageRepository {
                     )
                 }
                 messageDao.insertIgnoreAll(entities)
-                // Update chat history previews
                 items.groupBy { it.senderId }.forEach { (senderId, msgs) ->
-                    val latest = msgs.maxByOrNull { it.createdAt }
+                    val latest = msgs.maxByOrNull { parseIsoToMillis(it.createdAt) }
                     if (latest != null) {
-                        updateChatHistoryPreview(senderId, latest.content)
+                        upsertConversationState(
+                            peerDeviceId = senderId,
+                            sessionId = latest.sessionId,
+                            content = latest.content,
+                            messageAtMillis = parseIsoToMillis(latest.createdAt),
+                        )
                     }
                 }
                 Log.d(TAG, "Sync: pulled ${items.size} missed messages")
@@ -133,12 +145,12 @@ object MessageRepository {
      * 单会话同步：拉取某个 session 在本地最新消息之后的增量。
      * 用于进入聊天页时补漏。
      */
-    suspend fun syncSessionMessages(sessionId: String): Int {
+    suspend fun syncSessionMessages(sessionId: String, peerDeviceId: String): Int {
         if (sessionId.isBlank() || sessionId == "pending") return 0
 
         val myDeviceId = DeviceManager.getDeviceId()
         val latestTs = messageDao.getLatestTimestampForSession(sessionId) ?: 0L
-        val afterIso = if (latestTs > 0) isoFormat.format(latestTs) else "2000-01-01T00:00:00"
+        val afterIso = if (latestTs > 0) Instant.ofEpochMilli(latestTs).toString() else "2000-01-01T00:00:00Z"
 
         return try {
             val response = ApiClient.messageApi.getHistory(
@@ -155,7 +167,7 @@ object MessageRepository {
                         messageId = dto.messageId,
                         sessionId = sessionId,
                         senderId = dto.senderId,
-                        receiverId = myDeviceId,
+                        receiverId = if (dto.senderId == myDeviceId) peerDeviceId else myDeviceId,
                         content = dto.content,
                         type = dto.type,
                         status = if (dto.senderId == myDeviceId) dto.status else "received",
@@ -163,6 +175,15 @@ object MessageRepository {
                     )
                 }
                 messageDao.insertIgnoreAll(entities)
+                val latest = entities.maxByOrNull { it.createdAt }
+                if (latest != null) {
+                    upsertConversationState(
+                        peerDeviceId = peerDeviceId,
+                        sessionId = sessionId,
+                        content = latest.content,
+                        messageAtMillis = latest.createdAt,
+                    )
+                }
                 Log.d(TAG, "Session sync: pulled ${items.size} messages for $sessionId")
                 items.size
             } else {
@@ -175,11 +196,51 @@ object MessageRepository {
         }
     }
 
-    private fun parseIsoToMillis(iso: String): Long {
-        return try {
-            isoFormat.parse(iso)?.time ?: System.currentTimeMillis()
-        } catch (e: Exception) {
-            System.currentTimeMillis()
+    fun parseServerTimestamp(iso: String): Long = parseIsoToMillis(iso)
+
+    suspend fun upsertConversationState(
+        peerDeviceId: String,
+        sessionId: String,
+        content: String,
+        messageAtMillis: Long,
+    ) {
+        val history = chatHistoryDao.getByDeviceId(peerDeviceId)
+        val friend = friendDao.getByDeviceId(peerDeviceId)
+
+        if (history != null) {
+            chatHistoryDao.insertOrReplace(
+                history.copy(
+                    sessionId = sessionId,
+                    lastMessage = content,
+                    lastMessageAt = messageAtMillis,
+                )
+            )
+        } else {
+            chatHistoryDao.insertOrReplace(
+                ChatHistoryEntity(
+                    deviceId = peerDeviceId,
+                    nickname = friend?.nickname ?: "未知用户",
+                    avatar = friend?.avatar,
+                    tags = friend?.tags ?: "[]",
+                    profile = friend?.profile.orEmpty(),
+                    isAnonymous = friend?.isAnonymous ?: false,
+                    isFriend = friend != null,
+                    sessionId = sessionId,
+                    lastMessage = content,
+                    lastMessageAt = messageAtMillis,
+                    firstSeenAt = messageAtMillis,
+                    lastSeenAt = messageAtMillis,
+                )
+            )
+        }
+
+        if (friend != null) {
+            friendDao.insertOrReplace(
+                friend.copy(
+                    sessionId = sessionId,
+                    lastChatAt = messageAtMillis,
+                )
+            )
         }
     }
 
@@ -188,9 +249,27 @@ object MessageRepository {
             chatHistoryDao.insertOrReplace(
                 history.copy(
                     lastMessage = content,
-                    lastMessageAt = System.currentTimeMillis()
+                    lastMessageAt = System.currentTimeMillis(),
                 )
             )
+        }
+    }
+
+    private fun parseIsoToMillis(iso: String): Long {
+        return try {
+            Instant.parse(iso).toEpochMilli()
+        } catch (_: Exception) {
+            try {
+                OffsetDateTime.parse(iso).toInstant().toEpochMilli()
+            } catch (_: Exception) {
+                try {
+                    LocalDateTime.parse(iso, DateTimeFormatter.ISO_DATE_TIME)
+                        .toInstant(ZoneOffset.UTC)
+                        .toEpochMilli()
+                } catch (_: Exception) {
+                    System.currentTimeMillis()
+                }
+            }
         }
     }
 }

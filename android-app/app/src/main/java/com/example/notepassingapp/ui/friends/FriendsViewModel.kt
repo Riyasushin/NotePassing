@@ -19,6 +19,8 @@ import kotlinx.coroutines.launch
 
 class FriendsViewModel : ViewModel() {
 
+    private val legacyTestFriendIds = listOf("test-001", "test-002", "test-003")
+
     private val friendDao = NotePassingApp.instance.database.friendDao()
     private val friendRequestDao = NotePassingApp.instance.database.friendRequestDao()
 
@@ -48,6 +50,7 @@ class FriendsViewModel : ViewModel() {
         )
 
     init {
+        purgeLegacyTestFriends()
         viewModelScope.launch {
             RelationRepository.syncFriends()
         }
@@ -107,54 +110,9 @@ class FriendsViewModel : ViewModel() {
         }
     }
 
-    // ---- 测试用，后续删除 ----
-    fun insertTestFriends() {
+    private fun purgeLegacyTestFriends() {
         viewModelScope.launch {
-            val now = System.currentTimeMillis()
-            val testFriends = listOf(
-                FriendEntity(
-                    deviceId = "test-001",
-                    nickname = "小明",
-                    profile = "喜欢拍照的程序员",
-                    tags = "[\"摄影\",\"编程\"]",
-                    meetCount = 5,
-                    isNearby = true,
-                    isAnonymous = true,
-                    lastChatAt = now - 300_000,   // 5 分钟前
-                    createdAt = now - 86400_000
-                ),
-                FriendEntity(
-                    deviceId = "test-002",
-                    nickname = "Alice",
-                    profile = "旅行中...",
-                    tags = "[\"旅行\",\"音乐\"]",
-                    meetCount = 2,
-                    isNearby = false,
-                    isAnonymous = true,
-                    lastChatAt = now - 3600_000,  // 1 小时前
-                    createdAt = now - 172800_000
-                ),
-                FriendEntity(
-                    deviceId = "test-003",
-                    nickname = "神秘旅者",
-                    profile = "",
-                    isAnonymous = true,
-                    meetCount = 0,
-                    isNearby = false,
-                    lastChatAt = null,
-                    createdAt = now - 7200_000
-                )
-            )
-            testFriends.forEach { friendDao.insertOrReplace(it) }
+            legacyTestFriendIds.forEach { friendDao.delete(it) }
         }
     }
-
-    fun clearTestFriends() {
-        viewModelScope.launch {
-            listOf("test-001", "test-002", "test-003").forEach {
-                friendDao.delete(it)
-            }
-        }
-    }
-    // ---- 测试用结束 ----
 }

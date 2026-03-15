@@ -111,6 +111,7 @@ object IncomingMessageHandler {
         if (msg.payload == null) return
         try {
             val payload = gson.fromJson(msg.payload, WsNewMessagePayload::class.java)
+            val createdAtMillis = MessageRepository.parseServerTimestamp(payload.createdAt)
 
             val entity = MessageEntity(
                 messageId = payload.messageId,
@@ -119,18 +120,16 @@ object IncomingMessageHandler {
                 receiverId = myDeviceId,
                 content = payload.content,
                 type = payload.type,
-                status = "received"
+                status = "received",
+                createdAt = createdAtMillis,
             )
             messageDao.insert(entity)
-
-            chatHistoryDao.getByDeviceId(payload.senderId)?.let { history ->
-                chatHistoryDao.insertOrReplace(
-                    history.copy(
-                        lastMessage = payload.content,
-                        lastMessageAt = System.currentTimeMillis()
-                    )
-                )
-            }
+            MessageRepository.upsertConversationState(
+                peerDeviceId = payload.senderId,
+                sessionId = payload.sessionId,
+                content = payload.content,
+                messageAtMillis = createdAtMillis,
+            )
 
             Log.d(TAG, "Saved incoming msg ${payload.messageId} from ${payload.senderId}")
         } catch (e: Exception) {
