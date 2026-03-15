@@ -37,7 +37,7 @@ function updateSummary(payload) {
   setText("generatedAt", `最后更新 ${formatTime(payload.generated_at)}`);
   setText(
     "windowLabel",
-    `蓝牙窗口 ${payload.windows.presence_seconds}s / 消息窗口 ${payload.windows.message_minutes}min`
+    `蓝牙窗口 ${payload.windows.presence_seconds}s / 消息窗口 ${payload.windows.message_seconds}s`
   );
   setText("broadcastingDevices", payload.stats.broadcasting_devices);
   setText("bluetoothActiveDevices", payload.stats.bluetooth_active_devices);

@@ -116,8 +116,9 @@ server {
 | `NP_SITE_DATABASE_URL` | 优先使用的数据库连接串 | - |
 | `DATABASE_URL` | 如果未设置上面这个，则回退使用它 | - |
 | `NP_SITE_REFRESH_SECONDS` | 前端轮询秒数 | `5` |
-| `NP_SITE_PRESENCE_SECONDS` | 蓝牙活跃窗口秒数 | `180` |
-| `NP_SITE_MESSAGE_MINUTES` | 消息活跃窗口分钟数 | `15` |
+| `NP_SITE_PRESENCE_SECONDS` | 蓝牙活跃窗口秒数 | `10` |
+| `NP_SITE_MESSAGE_SECONDS` | 消息活跃窗口秒数 | `30` |
+| `NP_SITE_MESSAGE_MINUTES` | 消息活跃窗口分钟数（兼容旧配置） | - |
 | `NP_SITE_MAX_NODES` | 图中最多保留多少节点 | `80` |
 
 ## 故障排查

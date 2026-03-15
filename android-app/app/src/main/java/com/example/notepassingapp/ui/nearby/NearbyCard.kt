@@ -269,7 +269,7 @@ private fun nearbyCardStyle(user: NearbyUser): NearbyCardStyle {
                 width = 4.dp,
             )
         )
-        user.state == NearbyState.ACTIVE && user.hasCommonTags -> listOf(
+        user.state != NearbyState.EXPIRED && user.hasCommonTags -> listOf(
             NearbyCardBorderSpec(
                 brush = greenBrush,
                 width = 4.dp,
@@ -279,7 +279,7 @@ private fun nearbyCardStyle(user: NearbyUser): NearbyCardStyle {
                 width = 4.dp,
             ),
         )
-        user.state == NearbyState.ACTIVE -> listOf(
+        user.state != NearbyState.EXPIRED -> listOf(
             NearbyCardBorderSpec(
                 brush = greenBrush,
                 width = 4.dp,

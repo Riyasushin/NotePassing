@@ -35,7 +35,8 @@ import com.example.notepassingapp.data.local.entity.FriendEntity
 import com.example.notepassingapp.data.local.entity.FriendRequestEntity
 import com.example.notepassingapp.ui.components.ProfileDetailDialog
 import com.example.notepassingapp.ui.components.ProfilePreviewData
-import com.example.notepassingapp.ui.theme.AppBackgroundWhite
+import com.example.notepassingapp.ui.theme.FriendsPageBackground
+import com.example.notepassingapp.ui.theme.PageTitleOnLight
 import com.example.notepassingapp.util.TagSerializer
 
 @Composable
@@ -57,13 +58,13 @@ fun FriendsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppBackgroundWhite)
+            .background(FriendsPageBackground)
             .padding(horizontal = 16.dp)
     ) {
         Text(
             text = "好友",
             style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = PageTitleOnLight,
             modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
         )
 

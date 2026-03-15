@@ -24,9 +24,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notepassingapp.ble.BleManager
-import com.example.notepassingapp.ui.theme.AppBackgroundGray
 import com.example.notepassingapp.ui.components.ProfileDetailDialog
 import com.example.notepassingapp.ui.components.ProfilePreviewData
+import com.example.notepassingapp.ui.theme.NearbyPageBackground
+import com.example.notepassingapp.ui.theme.PageSubtitleOnDark
+import com.example.notepassingapp.ui.theme.PageTitleOnDark
 
 @Composable
 fun NearbyScreen(
@@ -59,7 +61,7 @@ fun NearbyScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppBackgroundGray)
+            .background(NearbyPageBackground)
     ) {
         Column(
             modifier = Modifier
@@ -69,7 +71,7 @@ fun NearbyScreen(
             Text(
                 text = "附近",
                 style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = PageTitleOnDark,
                 modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
             )
 
@@ -96,12 +98,12 @@ fun NearbyScreen(
                         Text(
                             text = "附近暂无用户",
                             style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = PageTitleOnDark
                         )
                         Text(
                             text = "打开蓝牙，发现身边的人",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.outline
+                            color = PageSubtitleOnDark
                         )
                         Spacer(modifier = Modifier.height(24.dp))
                         OutlinedButton(onClick = { viewModel.insertTestData() }) {

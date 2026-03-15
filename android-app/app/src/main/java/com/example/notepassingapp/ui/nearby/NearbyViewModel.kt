@@ -287,19 +287,27 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
         rt: RealtimeState?,
         friendRequestState: FriendRequestState
     ): NearbyUser {
-        val effectiveState = if (isSessionExpired && !isFriend) {
-            // Session expired non-friends are always EXPIRED
-            NearbyState.EXPIRED
-        } else {
-            rt?.state ?: run {
-                val elapsed = System.currentTimeMillis() - lastSeenAt
-                when {
-                    elapsed < 10_000 -> NearbyState.ACTIVE
-                    elapsed < 60_000 -> NearbyState.GRACE
-                    else -> NearbyState.EXPIRED
-                }
+        val fallbackStateAndLeftAt = run {
+            val elapsed = System.currentTimeMillis() - lastSeenAt
+            when {
+                elapsed < 10_000 -> NearbyState.ACTIVE to null
+                elapsed < 60_000 -> NearbyState.GRACE to lastSeenAt
+                else -> NearbyState.EXPIRED to lastSeenAt
             }
         }
+
+        val effectiveState = if (isSessionExpired && !isFriend) {
+            NearbyState.EXPIRED
+        } else {
+            rt?.state ?: fallbackStateAndLeftAt.first
+        }
+
+        val effectiveLeftAt = rt?.leftAt ?: when {
+            effectiveState == NearbyState.GRACE -> fallbackStateAndLeftAt.second
+            effectiveState == NearbyState.EXPIRED -> fallbackStateAndLeftAt.second
+            else -> null
+        }
+
         return NearbyUser(
             deviceId = deviceId,
             nickname = nickname,
@@ -313,7 +321,7 @@ class NearbyViewModel(application: Application) : AndroidViewModel(application) 
             state = effectiveState,
             rssi = rt?.rssi ?: -100,
             distanceEstimate = rt?.distanceEstimate ?: 0f,
-            leftAt = rt?.leftAt,
+            leftAt = effectiveLeftAt,
             friendRequestState = friendRequestState,
             sessionId = sessionId,
             lastMessage = lastMessage,

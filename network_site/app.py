@@ -21,8 +21,9 @@ class Settings(BaseSettings):
     np_site_database_url: str | None = None
     database_url: str | None = None
     np_site_refresh_seconds: int = 5
-    np_site_presence_seconds: int = 180
-    np_site_message_minutes: int = 15
+    np_site_presence_seconds: int = 10
+    np_site_message_seconds: int | None = 30
+    np_site_message_minutes: int | None = None
     np_site_max_nodes: int = 80
     app_name: str = "NotePassing Network Site"
 
@@ -32,6 +33,14 @@ class Settings(BaseSettings):
         if not url:
             raise RuntimeError("DATABASE_URL or NP_SITE_DATABASE_URL is required")
         return url
+
+    @property
+    def resolved_message_seconds(self) -> int:
+        if self.np_site_message_seconds is not None:
+            return self.np_site_message_seconds
+        if self.np_site_message_minutes is not None:
+            return self.np_site_message_minutes * 60
+        return 30
 
 
 settings = Settings()
@@ -47,7 +56,7 @@ class AppState:
 async def build_payload(session: AsyncSession) -> dict[str, Any]:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     presence_cutoff = now - timedelta(seconds=settings.np_site_presence_seconds)
-    message_cutoff = now - timedelta(minutes=settings.np_site_message_minutes)
+    message_cutoff = now - timedelta(seconds=settings.resolved_message_seconds)
 
     devices = metadata.tables["devices"]
     temp_ids = metadata.tables["temp_ids"]
@@ -294,7 +303,7 @@ async def build_payload(session: AsyncSession) -> dict[str, Any]:
         "refresh_seconds": settings.np_site_refresh_seconds,
         "windows": {
             "presence_seconds": settings.np_site_presence_seconds,
-            "message_minutes": settings.np_site_message_minutes,
+            "message_seconds": settings.resolved_message_seconds,
         },
         "stats": stats,
         "nodes": nodes,

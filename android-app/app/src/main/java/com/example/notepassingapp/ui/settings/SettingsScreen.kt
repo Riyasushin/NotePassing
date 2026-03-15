@@ -38,7 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notepassingapp.ui.components.ProfileTagChips
 import com.example.notepassingapp.ui.components.UserAvatar
-import com.example.notepassingapp.ui.theme.AppBackgroundWhite
+import com.example.notepassingapp.ui.theme.PageTitleOnLight
+import com.example.notepassingapp.ui.theme.SettingsPageBackground
 import kotlinx.coroutines.launch
 
 @Composable
@@ -67,14 +68,14 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppBackgroundWhite)
+            .background(SettingsPageBackground)
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
         Text(
             text = "设置",
             style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = PageTitleOnLight,
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
