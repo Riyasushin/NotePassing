@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NotePassing Network</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">NOTE PASSING LIVE TOPOLOGY</p>
+        <h1>塞纸条蓝牙关系图</h1>
+        <p class="hero-text">
+          实时读取数据库，展示当前广播设备、近期蓝牙邻近关系与好友连接网络。
+        </p>
+      </div>
+      <div class="hero-status">
+        <div class="status-pill">
+          <span class="status-dot"></span>
+          <span id="generatedAt">等待数据</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="grid-layout">
+      <section class="panel stats-panel">
+        <div class="panel-head">
+          <h2>实时概览</h2>
+          <p id="windowLabel">读取窗口中</p>
+        </div>
+        <div class="stats-grid">
+          <article class="stat-card">
+            <span class="stat-label">当前广播人数</span>
+            <strong id="broadcastingDevices">0</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">近期蓝牙活跃</span>
+            <strong id="bluetoothActiveDevices">0</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">可视节点</span>
+            <strong id="visibleDevices">0</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">蓝牙邻近边</span>
+            <strong id="bluetoothEdges">0</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">好友边</span>
+            <strong id="friendshipEdges">0</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">临时会话</span>
+            <strong id="activeTempSessions">0</strong>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel graph-panel">
+        <div class="panel-head">
+          <h2>自适应网络图</h2>
+          <p>绿色为蓝牙邻近边，白色为好友边</p>
+        </div>
+        <div class="legend-row">
+          <span><i class="legend-line bluetooth"></i>蓝牙邻近</span>
+          <span><i class="legend-line friendship"></i>好友关系</span>
+          <span><i class="legend-dot broadcasting"></i>当前广播</span>
+          <span><i class="legend-dot silent"></i>非广播节点</span>
+        </div>
+        <div class="graph-frame">
+          <canvas id="graphCanvas"></canvas>
+          <div id="graphEmpty" class="graph-empty">当前窗口内暂无可视网络关系</div>
+        </div>
+      </section>
+
+      <section class="panel side-panel">
+        <div class="panel-head">
+          <h2>活跃设备</h2>
+          <p>按广播与连接度排序</p>
+        </div>
+        <div id="highlights" class="highlight-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <template id="highlightTemplate">
+    <article class="highlight-item">
+      <div>
+        <strong class="highlight-name"></strong>
+        <p class="highlight-meta"></p>
+      </div>
+      <span class="highlight-badge"></span>
+    </article>
+  </template>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
