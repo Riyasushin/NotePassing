@@ -35,28 +35,59 @@
 
 ## 运行
 
-1. 进入项目目录
-2. 设置数据库连接
-3. 启动站点
+### 准备工作
+
+确保你有正确的数据库连接串。如果你已经有 NotePassing backend 在运行，可以直接从它的 `.env` 文件读取：
+
+```bash
+# 方法 1：手动查看 backend/.env 中的 DATABASE_URL
+cat ../backend/.env | grep DATABASE_URL
+
+# 方法 2：直接导出到当前环境
+export $(grep DATABASE_URL ../backend/.env | xargs)
+```
+
+默认的数据库连接串格式：
+```
+postgresql+asyncpg://用户名:密码@主机:端口/数据库名
+```
+
+**注意**：如果你用 Docker 运行 PostgreSQL，且 backend 也在 Docker 中，需要确认网络访问方式：
+- 如果 site 在宿主机运行，数据库在 Docker：把 `localhost` 换成 `127.0.0.1` 或 Docker 容器 IP
+- 如果都在 Docker 中：使用 Docker 网络内的主机名（如 `db`）
+
+### 启动站点
 
 ```bash
 cd network_site
-export DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/notepassing"
+
+# 设置数据库连接（使用你实际的用户名、密码）
+export DATABASE_URL="postgresql+asyncpg://notepassing:notepassing-secret@localhost:5432/notepassing"
+
+# 启动服务
 uvicorn app:app --host 0.0.0.0 --port 8090
 ```
 
-如果你想单独给这个站点使用变量，也可以设置 `NP_SITE_DATABASE_URL`。
+如果你想单独给这个站点使用变量，也可以设置 `NP_SITE_DATABASE_URL`（优先级更高）：
 
 ```bash
-export NP_SITE_DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/notepassing"
+export NP_SITE_DATABASE_URL="postgresql+asyncpg://notepassing:notepassing-secret@localhost:5432/notepassing"
 uvicorn app:app --host 0.0.0.0 --port 8090
 ```
 
-SQLite 示例：
+SQLite 示例（仅用于测试）：
 
 ```bash
 export DATABASE_URL="sqlite+aiosqlite:///absolute/path/to/test.db"
 uvicorn app:app --host 0.0.0.0 --port 8090
+```
+
+### 使用 uv 运行（如果你用 uv 管理依赖）
+
+```bash
+cd network_site
+export $(grep DATABASE_URL ../backend/.env | xargs)
+uv run uvicorn app:app --host 0.0.0.0 --port 8090
 ```
 
 ## 反向代理到 HTTP 主页
@@ -80,10 +111,26 @@ server {
 
 ## 环境变量
 
-- `NP_SITE_DATABASE_URL`：优先使用的数据库连接串
-- `DATABASE_URL`：如果未设置上面这个，则回退使用它
-- `NP_SITE_REFRESH_SECONDS`：前端轮询秒数，默认 `5`
-- `NP_SITE_PRESENCE_SECONDS`：蓝牙活跃窗口秒数，默认 `180`
-- `NP_SITE_MESSAGE_MINUTES`：消息活跃窗口分钟数，默认 `15`
-- `NP_SITE_MAX_NODES`：图中最多保留多少节点，默认 `80`
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `NP_SITE_DATABASE_URL` | 优先使用的数据库连接串 | - |
+| `DATABASE_URL` | 如果未设置上面这个，则回退使用它 | - |
+| `NP_SITE_REFRESH_SECONDS` | 前端轮询秒数 | `5` |
+| `NP_SITE_PRESENCE_SECONDS` | 蓝牙活跃窗口秒数 | `180` |
+| `NP_SITE_MESSAGE_MINUTES` | 消息活跃窗口分钟数 | `15` |
+| `NP_SITE_MAX_NODES` | 图中最多保留多少节点 | `80` |
 
+## 故障排查
+
+### 错误：`password authentication failed for user "user"`
+
+说明你使用的数据库连接串中的用户名或密码不正确。请检查：
+1. 确认 `../backend/.env` 中的 `DATABASE_URL` 是正确的
+2. 确认 PostgreSQL 服务正在运行且可访问
+3. 如果使用 Docker，确认主机名和端口映射正确
+
+### 错误：`Connection refused`
+
+- 检查 PostgreSQL 是否正在运行
+- 检查主机名是否正确（Docker 环境下可能需要使用 `127.0.0.1` 而不是 `localhost`）
+- 检查端口是否正确（默认 5432）

@@ -1,4 +1,5 @@
 """NotePassing API main application."""
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -12,6 +13,21 @@ from app.routers import device, temp_id, message, friendship, block, presence, w
 settings = get_settings()
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan - create tables on startup."""
+    # Startup: Create all tables
+    from app.database import get_engine, Base
+    async with get_engine().begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    print("✅ Database tables created")
+    
+    yield
+    
+    # Shutdown: cleanup if needed
+    pass
+
+
 def create_app() -> FastAPI:
     """Create and configure FastAPI application."""
     app = FastAPI(
@@ -20,6 +36,7 @@ def create_app() -> FastAPI:
         version="1.0.0",
         docs_url="/docs" if settings.debug else None,
         redoc_url="/redoc" if settings.debug else None,
+        lifespan=lifespan,
     )
     
     # Setup exception handlers

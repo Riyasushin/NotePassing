@@ -15,11 +15,7 @@ docker compose up -d db
 echo "⏳ 等待数据库就绪..."
 sleep 5
 
-# 3. 运行数据库迁移
-echo "🔄 运行数据库迁移..."
-uv run alembic upgrade head
-
-# 4. 启动服务器
+# 3. 启动服务器（表会自动创建）
 echo "🌐 启动 Uvicorn 服务器..."
 echo ""
 echo "====================================="
