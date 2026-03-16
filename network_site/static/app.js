@@ -161,8 +161,11 @@ function drawGraph() {
     ctx.strokeStyle =
       edge.kind === "friendship" ? "rgba(255,255,255,0.56)" : "rgba(99,255,155,0.55)";
     ctx.lineWidth = edge.kind === "friendship" ? 1.4 : 1.8;
+    ctx.shadowBlur = edge.kind === "friendship" ? 0 : 10;
+    ctx.shadowColor = edge.kind === "friendship" ? "transparent" : "rgba(99,255,155,0.3)";
     ctx.stroke();
   }
+  ctx.shadowBlur = 0;
 
   for (const node of state.simNodes) {
     ctx.beginPath();
@@ -176,7 +179,7 @@ function drawGraph() {
     ctx.fill();
 
     ctx.fillStyle = "#f5fff7";
-    ctx.font = "12px 'Segoe UI', sans-serif";
+    ctx.font = "12px 'Trebuchet MS', 'Microsoft YaHei', sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(node.label, node.x, node.y - 14);
   }

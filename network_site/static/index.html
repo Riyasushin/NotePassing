@@ -3,32 +3,48 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NotePassing Network</title>
+  <title>塞纸条 | 蓝牙组网展示</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <div class="page-shell">
     <header class="hero">
       <div class="hero-copy">
-        <p class="eyebrow">NOTE PASSING LIVE TOPOLOGY</p>
-        <h1>塞纸条蓝牙关系图</h1>
+        <p class="eyebrow">NOTE PASSING</p>
+        <h1>塞纸条蓝牙可视化组网</h1>
         <p class="hero-text">
-          实时读取数据库，展示当前广播设备、近期蓝牙邻近关系与好友连接网络。
+          以更贴近塞纸条产品演示页的方式呈现实时网络状态，保留蓝牙拓扑的黑色极客观感，同时突出应用入口、下载路径和在线状态。
         </p>
-      </div>
-      <div class="hero-status">
-        <div class="status-pill">
-          <span class="status-dot"></span>
-          <span id="generatedAt">等待数据</span>
+        <div class="hero-actions">
+          <a class="primary-action" href="/static/apk-release.apk" download>下载 Android APK</a>
+          <a class="secondary-action" href="#topology">查看实时组网</a>
         </div>
       </div>
+
+      <aside class="brand-card">
+        <div class="brand-mark">
+          <img src="/static/demo.png" alt="塞纸条应用标识">
+        </div>
+        <div class="brand-copy">
+          <strong>塞纸条 Demo</strong>
+          <p>校园匿名社交与蓝牙近场发现的演示入口</p>
+        </div>
+        <div class="status-pill">
+          <span class="status-dot"></span>
+          <span id="generatedAt">等待实时数据</span>
+        </div>
+        <a class="download-card" href="/static/apk-release.apk" download>
+          <span class="download-label">最新安装包</span>
+          <strong>apk-release.apk</strong>
+        </a>
+      </aside>
     </header>
 
     <main class="grid-layout">
       <section class="panel stats-panel">
         <div class="panel-head">
           <h2>实时概览</h2>
-          <p id="windowLabel">读取窗口中</p>
+          <p id="windowLabel">读取时间窗口中</p>
         </div>
         <div class="stats-grid">
           <article class="stat-card">
@@ -58,27 +74,34 @@
         </div>
       </section>
 
-      <section class="panel graph-panel">
+      <section class="panel graph-panel" id="topology">
         <div class="panel-head">
-          <h2>自适应网络图</h2>
-          <p>绿色为蓝牙邻近边，白色为好友边</p>
+          <h2>蓝牙可视化组网</h2>
+          <p>绿色表示蓝牙邻近连接，白色表示好友关系连接</p>
         </div>
         <div class="legend-row">
           <span><i class="legend-line bluetooth"></i>蓝牙邻近</span>
           <span><i class="legend-line friendship"></i>好友关系</span>
           <span><i class="legend-dot broadcasting"></i>当前广播</span>
-          <span><i class="legend-dot silent"></i>非广播节点</span>
+          <span><i class="legend-dot silent"></i>静默节点</span>
         </div>
         <div class="graph-frame">
           <canvas id="graphCanvas"></canvas>
-          <div id="graphEmpty" class="graph-empty">当前窗口内暂无可视网络关系</div>
+          <div id="graphEmpty" class="graph-empty">当前时间窗口内暂无可视网络关系</div>
         </div>
       </section>
 
       <section class="panel side-panel">
         <div class="panel-head">
           <h2>活跃设备</h2>
-          <p>按广播与连接度排序</p>
+          <p>按广播状态与连接度排序</p>
+        </div>
+        <div class="download-mini-card">
+          <div>
+            <strong>移动端体验</strong>
+            <p>下载 APK，在真机上体验塞纸条 Demo。</p>
+          </div>
+          <a href="/static/apk-release.apk" download>立即下载</a>
         </div>
         <div id="highlights" class="highlight-list"></div>
       </section>
